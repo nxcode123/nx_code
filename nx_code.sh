@@ -1,5 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
+# --- KONFIGURASI UPDATE (GANTI SESUAI REPO GITHUB KAMU) ---
+# Ganti USERNAME di bawah dengan username GitHub kamu sebelum publish/pakai fitur update.
+NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
+
 # --- WARNA CYBERPUNK (ANSI) ---
 CYAN='\033[0;36m'
 NEON_GREEN='\033[1;32m'
@@ -401,6 +405,46 @@ quick_devtools_installer() {
     done
 }
 
+# --- FUNGSI CHECK UPDATE (AMBIL VERSI TERBARU DARI GITHUB) ---
+# Alur: download versi terbaru -> bandingkan sama file lokal -> kalau beda,
+# timpa file lokal, bersihkan blok NX_CODE ENVIRONMENT lama di .bashrc,
+# lalu jalankan ulang installer (otomatis reinstall + reboot terminal).
+check_for_update() {
+    echo -e "\n${PROCESS} ${CYAN}Mengecek update dari GitHub...${NC}"
+
+    local tmp_file="$HOME/.nx_code_update_tmp.sh"
+    rm -f "$tmp_file"
+
+    if ! curl -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null; then
+        echo -e "${NEON_PINK}[X] Gagal mengambil update. Cek koneksi internet atau URL repo di NX_CODE_REPO_RAW_URL.${NC}"
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    if [ ! -s "$tmp_file" ]; then
+        echo -e "${NEON_PINK}[X] File update kosong/tidak valid. Cek URL repo.${NC}"
+        rm -f "$tmp_file"
+        return 1
+    fi
+
+    if diff -q "$tmp_file" "$HOME/nx_code.sh" >/dev/null 2>&1; then
+        echo -e "${SUCCESS} ${WHITE}Sudah pakai versi terbaru. Tidak ada update.${NC}"
+        rm -f "$tmp_file"
+        return 0
+    fi
+
+    echo -e "${SUCCESS} ${WHITE}Update ditemukan! Menerapkan...${NC}"
+    mv "$tmp_file" "$HOME/nx_code.sh"
+    chmod +x "$HOME/nx_code.sh"
+
+    # Bersihkan blok NX_CODE ENVIRONMENT lama di .bashrc supaya diinjeksi ulang fresh
+    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
+
+    echo -e "${PROCESS} ${CYAN}Menjalankan ulang installer (reinstall + restart terminal)...${NC}"
+    sleep 1
+    exec bash "$HOME/nx_code.sh"
+}
+
 # --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     animate_logo
@@ -413,7 +457,8 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[4]${NC} ${WHITE}Cek sesi xfce yang aktif${NC}"
     echo -e " ${PURPLE}[5]${NC} ${WHITE}Quick Dev-Tools Installer${NC}"
     echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
-    echo -e " ${PURPLE}[7]${NC} ${WHITE}Kembali ke home${NC}"
+    echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
+    echo -e " ${PURPLE}[8]${NC} ${WHITE}Kembali ke home${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
     read pilihan
@@ -455,6 +500,11 @@ show_shortcut_menu() {
             show_shortcut_menu
             ;;
         7)
+            check_for_update
+            sleep 1
+            show_shortcut_menu
+            ;;
+        8)
             echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
             ;;
         *)
@@ -575,18 +625,6 @@ else
 fi
 echo ""
 
-(dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 1) 2>/dev/null &
-show_futuristic_progress "Scanning Modules..." $!
-
-if [ -f "$TMPDIR/installed_pkgs.txt" ]; then
-    total_pkgs=$(wc -l < "$TMPDIR/installed_pkgs.txt")
-    echo -e "${PURPLE}--> Total paket terdeteksi: ${NEON_GREEN}${total_pkgs} paket${NC}"
-    echo -e "${CYAN}--> Menampilkan beberapa core modul yang aktif:${NC}"
-    awk '{print "    [+] " $2 " (v" $3 ")"}' "$TMPDIR/installed_pkgs.txt" | head -n 5
-    rm -f "$TMPDIR/installed_pkgs.txt"
-fi
-echo ""
-
 # --- SALIN SCRIPT KE LOKASI PERMANEN ---
 # Diperbaiki: mendukung eksekusi via `bash <(wget -qO- URL)` atau `wget script.sh && bash script.sh`,
 # di mana "$0" bisa berupa "bash" atau path sementara yang tidak valid dengan realpath.
@@ -622,6 +660,11 @@ else
     echo -e "${PURPLE}    Silakan download file-nya dulu (mis. wget URL -O nx_code.sh) lalu jalankan: bash nx_code.sh${NC}"
 fi
 
+# Migrasi: hapus flag -i dari rm() kalau sempat ke-inject di .bashrc versi lama
+if grep -q 'command rm -i "\$@"' "$HOME/.bashrc" 2>/dev/null; then
+    sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc"
+fi
+
 if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
     cat << 'EOF' >> "$HOME/.bashrc"
 
@@ -649,7 +692,7 @@ rm() {
         echo -e "\033[0;35m[?] SYSTEM HINT: Usage -> rm [file_name] or rm -rf [folder_name]\033[0m"
         return 1
     fi
-    command rm -i "$@"
+    command rm "$@"
 }
 
 command_not_found_handle() {
@@ -665,7 +708,33 @@ else
     echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${CYAN}Already Configured${NC}"
 fi
 
+(dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 1) 2>/dev/null &
+show_futuristic_progress "Scanning Modules..." $!
+
+if [ -f "$TMPDIR/installed_pkgs.txt" ]; then
+    total_pkgs=$(wc -l < "$TMPDIR/installed_pkgs.txt")
+    echo -e "${PURPLE}--> Total paket terdeteksi: ${NEON_GREEN}${total_pkgs} paket${NC}"
+    echo -e "${CYAN}--> Menampilkan beberapa core modul yang aktif:${NC}"
+    awk '{print "    [+] " $2 " (v" $3 ")"}' "$TMPDIR/installed_pkgs.txt" | head -n 5
+    rm -f "$TMPDIR/installed_pkgs.txt"
+fi
+
+echo -e "${NEON_GREEN}[Complete]${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
 echo -e "${NEON_GREEN}          SYSTEM INITIALIZED. NX_CODE ACTIVE.          ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
-echo -e "${NEON_PINK}[!] Restart terminal${NC} ${WHITE}atau jalankan:${NC} ${CYAN}source ~/.bashrc${NC} ${WHITE}supaya perubahan langsung aktif.${NC}"
+
+echo -e "${WHITE}Menu :${NC}"
+echo -e " ${PURPLE}[1]${NC} ${WHITE}Restart${NC}"
+echo -e " ${PURPLE}[2]${NC} ${WHITE}Exit${NC}"
+echo -ne "${CYAN}[?] Pilihan:${NC} "
+read final_choice
+
+case "$final_choice" in
+    1)
+        exec bash
+        ;;
+    *)
+        exit 0
+        ;;
+esac
