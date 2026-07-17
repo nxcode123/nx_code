@@ -11,7 +11,7 @@ Modular, powerful, and easy to use.
 - Cyberpunk theme
 
 
-## Install pertama kali
+# Install pertama kali
 bash <(curl -sL https://raw.githubusercontent.com/nxcode123/nx_code/main/installer.sh)
 
 # Setelah install, jalankan
