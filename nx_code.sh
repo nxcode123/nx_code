@@ -59,18 +59,11 @@ setup_nonroot_user() {
 # --- FUNGSI CEK STATUS SHARED STORAGE ---
 # Dianggap "siap" kalau user sudah pernah jalankan 'termux-setup-storage' manual
 # (itu yang bikin folder $HOME/storage/shared muncul).
+# CATATAN: proot-distro login Ubuntu SUDAH otomatis nge-bind storage ke /storage
+# bawaan dari sononya begitu ini siap -- jadi TIDAK perlu --bind manual lagi
+# (nambahin manual malah bikin konflik "overlaps with an existing one").
 is_storage_setup() {
     [ -d "$HOME/storage/shared" ]
-}
-
-# --- FUNGSI GENERATOR ARGUMEN BIND MOUNT STORAGE (OTOMATIS) ---
-# Kalau storage sudah siap, ini nyambungin /sdcard ke /storage di dalam Ubuntu
-# (bisa diakses user manapun, bukan cuma root) setiap kali login -- tanpa
-# perlu tombol/opsi manual.
-storage_bind_args() {
-    if is_storage_setup; then
-        echo "--bind $HOME/storage/shared:/storage"
-    fi
 }
 
 # --- FUNGSI PROGRESS BAR DINAMIS MINIMALIS ---
@@ -263,12 +256,12 @@ launch_ubuntu_gui() {
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
-proot-distro login ubuntu --shared-tmp --user $NX_USER $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh
+proot-distro login ubuntu --shared-tmp --user $NX_USER -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     else
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
-proot-distro login ubuntu --shared-tmp $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh
+proot-distro login ubuntu --shared-tmp -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     fi
     chmod +x "$HOME/.nx_x11_launch.sh"
@@ -468,7 +461,7 @@ show_shortcut_menu() {
             echo -e "\n${PROCESS} ${CYAN}Launching Ubuntu CLI Core...${NC}"
             sleep 1
             if is_ubuntu_installed; then
-                proot-distro login ubuntu $(storage_bind_args)
+                proot-distro login ubuntu
             else
                 echo -e "${NEON_PINK}[X] Error: Ubuntu OS belum diinstal. Jalankan ulang script secara manual.${NC}"
             fi
