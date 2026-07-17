@@ -8,7 +8,7 @@ Proyek ini dibuat agar **siapa saja bisa menikmati** lingkungan Ubuntu CLI dan G
 
 ## 🚀 Cara Instalasi Otomatis (Instan)
 
-Buka aplikasi **Termux** kamu, lalu cukup salin, tempel, dan jalankan perintah satu baris (*one-liner*) di bawah ini. Proses download, instalasi paket, konfigurasi sistem, hingga pembuatan pintasan menu akan berjalan sepenuhnya secara otomatis:
+Buka aplikasi **Termux** kamu, lalu salin dan jalankan perintah bersih di bawah ini. Cukup klik tombol **Copy** pada kotak kode di bawah ini untuk menghindari error karakter saat melakukan *paste* di Termux:
 
 ```bash
 pkg install curl -y && curl -sL [https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh](https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh) | bash
