@@ -1,4 +1,22 @@
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img width="1080" height="2388" alt="Screenshot_20260717_193007_com termux" src="https://github.com/user-attachments/assets/ddb50404-5a38-442f-94cb-03a0ca1d7034" /><br />
+      <sub><b>1. System Initialized</b></sub>
+    </td>
+    <td align="center">
+      <img width="1080" height="2388" alt="Screenshot_20260717_193025_com termux" src="https://github.com/user-attachments/assets/d9c0cd75-9d58-4525-b577-43aa0d73d40a" /><br />
+      <sub><b>2. Core Interface / Menu Utama</b></sub>
+    </td>
+    <td align="center">
+      <img width="1080" height="2388" alt="Screenshot_20260717_193036_com termux" src="https://github.com/user-attachments/assets/eb2bea73-a6f4-4e94-b07e-4cd1ced04376" /><br />
+      <sub><b>3. Pilihan Resolusi GUI</b></sub>
+    </td>
+  </tr>
+</table>
 
 # NX_CODE: Hypervisor GUI & CLI Environment v1.0.1
 
