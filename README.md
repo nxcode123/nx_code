@@ -10,7 +10,13 @@ Proyek ini dibuat agar SIAPA SAJA BISA MENIKMATI lingkungan Ubuntu CLI dan GUI d
 
 ## Cara Instalasi Otomatis (Instan)
 
-Buka aplikasi Termux kamu, lalu salin dan jalankan perintah teks polos di bawah ini (pencet enter untuk memulai):
+* DOWNLOAD TERMUX DI
+https://github.com/termux/termux-app/releases
+
+* DOWNLOAD TERMUX:X11 DI
+https://github.com/termux/termux-x11/releases
+
+* Buka aplikasi Termux kamu, lalu salin dan jalankan perintah teks polos di bawah ini (pencet enter untuk memulai):
 
 curl -fsSL https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh -o nx_code.sh && bash nx_code.sh
 
