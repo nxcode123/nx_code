@@ -252,12 +252,24 @@ launch_ubuntu_gui() {
 
     echo -e "\n${PROCESS} ${CYAN}Menyalakan server X11 (display :2) & masuk ke Ubuntu XFCE4...${NC}"
 
-    # Login pakai user non-root ($NX_USER) kalau berhasil disiapkan, fallback ke root kalau gagal
+    # Bikin wrapper script pendek di sisi Termux -- -xstartup langsung dikasih
+    # command panjang (banyak flag) bikin termux-x11 salah parsing argumen ke
+    # X server ("Command line argument... too long" / "unsafe environment").
+    # Solusinya: -xstartup cukup manggil 1 file pendek ini.
     if is_nonroot_user_setup; then
-        termux-x11 :2 -xstartup "proot-distro login ubuntu --shared-tmp --user $NX_USER $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh" &
+        cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
+#!/data/data/com.termux/files/usr/bin/bash
+proot-distro login ubuntu --shared-tmp --user $NX_USER $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh
+WRAPEOF
     else
-        termux-x11 :2 -xstartup "proot-distro login ubuntu --shared-tmp $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh" &
+        cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
+#!/data/data/com.termux/files/usr/bin/bash
+proot-distro login ubuntu --shared-tmp $(storage_bind_args) -- bash /usr/local/bin/nx-gui-startup.sh
+WRAPEOF
     fi
+    chmod +x "$HOME/.nx_x11_launch.sh"
+
+    termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" &
     X11_PID=$!
 
     # Beri waktu server X11 nyala, lalu pastikan prosesnya beneran hidup
@@ -656,3 +668,4 @@ fi
 echo -e "${NEON_PINK}======================================================${NC}"
 echo -e "${NEON_GREEN}          SYSTEM INITIALIZED. NX_CODE ACTIVE.          ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
+echo -e "${NEON_PINK}[!] Restart terminal${NC} ${WHITE}atau jalankan:${NC} ${CYAN}source ~/.bashrc${NC} ${WHITE}supaya perubahan langsung aktif.${NC}"
