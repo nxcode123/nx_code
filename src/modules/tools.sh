@@ -1,10 +1,14 @@
 #!/bin/bash
 # ==============================================================================
-# MODUL TOOLS – Dev Tools Installer
+# MODUL TOOLS – Dev Tools Installer (otomatis install Ubuntu jika perlu)
 # ==============================================================================
 
 install_dev_tools() {
-    [ "$UBUNTU_INSTALLED" != "yes" ] && { echo -e "${ERROR} Ubuntu tidak terinstall."; return 1; }
+    if ! install_ubuntu_if_needed; then
+        echo -e "${ERROR} Ubuntu tidak tersedia."
+        return 1
+    fi
+
     while true; do
         echo -e "\n${PURPLE}------------------------------------------------------"
         echo -e "${WHITE}DEV-TOOLS INSTALLER"

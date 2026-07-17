@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# NX_CODE MAIN ENTRY POINT
+# NX_CODE MAIN ENTRY POINT v3.0.0
 # ==============================================================================
 
 # --- Tentukan lokasi script ---
@@ -19,9 +19,10 @@ source "$NX_CODE_HOME/src/modules/update.sh"
 source "$NX_CODE_HOME/src/menu/main_menu.sh"
 
 # --- Inisialisasi ---
-init_config
-init_status_cache
+init_directories
+update_status_cache
 log_info "==================== NX_CODE START ===================="
+log_info "Version $VERSION"
 
 # --- Auto-Update (jika bukan mode khusus) ---
 if [[ "$1" != "--no-update" ]] && [[ "$1" != "--logo-only" ]]; then

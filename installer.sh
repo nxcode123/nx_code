@@ -1,11 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# NX_CODE INSTALLER v3.0.0 – Modular Edition
-# Mendownload semua komponen NX_CODE dari GitHub dan mengatur struktur direktori
+# NX_CODE INSTALLER v3.0.0 – Fully Automatic Modular Edition
 # ==============================================================================
 
-# --- Konfigurasi Installer ---
-GITHUB_USER="nxcode123"                     # GANTI dengan username GitHub kamu
+# --- Konfigurasi GitHub (GANTI DENGAN USERNAME KAMU) ---
+GITHUB_USER="nxcode123"
 GITHUB_REPO="nx_code"
 GITHUB_BRANCH="main"
 BASE_URL="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH"
@@ -15,6 +14,7 @@ FILES=(
     "main.sh"
     "README.md"
     "CHANGELOG.md"
+    "LICENSE"
     "src/core/config.sh"
     "src/core/utils.sh"
     "src/core/security.sh"
@@ -24,8 +24,6 @@ FILES=(
     "src/modules/backup.sh"
     "src/modules/update.sh"
     "src/menu/main_menu.sh"
-    "src/menu/submenu/ubuntu_menu.sh"
-    "src/menu/submenu/tools_menu.sh"
 )
 
 # --- Warna ---
@@ -50,6 +48,7 @@ download_file() {
     mkdir -p "$dir"
     echo -ne "${PROCESS} ${CYAN}Downloading $file...${NC}"
     if curl -sL "$BASE_URL/$file" -o "$dest"; then
+        chmod +x "$dest" 2>/dev/null
         echo -e " ${GREEN}[OK]${NC}"
         return 0
     else
@@ -74,10 +73,10 @@ setup_bashrc() {
 
 # --- NX_CODE ENVIRONMENT ---
 export NX_CODE_HOME="$HOME/.nx_code"
-alias nx='bash $NX_CODE_HOME/main.sh'
-alias nx-menu='nx'
-alias nx-update='bash $NX_CODE_HOME/src/modules/update.sh'
-alias nx-info='bash $NX_CODE_HOME/src/modules/info.sh' 2>/dev/null || echo "Info module not found"
+alias nx="bash \$NX_CODE_HOME/main.sh"
+alias nx-menu="nx"
+alias nx-update="bash \$NX_CODE_HOME/src/modules/update.sh"
+alias nx-info="bash \$NX_CODE_HOME/src/modules/info.sh 2>/dev/null || echo 'Info module not found'"
 PS1="\[\033[1;95m\][═\[\033[0;36m\]NX\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
 EOF
     echo -e "${SUCCESS} .bashrc updated."
@@ -100,7 +99,7 @@ show_finish() {
 # --- Main ---
 clear
 echo -e "${PURPLE}======================================================"
-echo -e "${WHITE}      NX_CODE INSTALLER v3.0.0 (Modular)"
+echo -e "${WHITE}      NX_CODE INSTALLER v3.0.0 (Fully Automatic)"
 echo -e "${PURPLE}======================================================"
 
 # Cek internet

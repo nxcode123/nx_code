@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# MENU UTAMA NX_CODE
+# MENU UTAMA NX_CODE v3.0.0
 # ==============================================================================
 
 show_main_menu() {
@@ -42,6 +42,8 @@ show_system_info() {
     echo -e "${CYAN}Arch:${NC} $(uname -m)"
     echo -e "${CYAN}Storage:${NC}"
     df -h /data /sdcard 2>/dev/null | awk '{print "  " $0}'
+    echo -e "${CYAN}Memory:${NC}"
+    free -h 2>/dev/null || echo "  N/A"
     echo -e "${CYAN}Packages:${NC} $(dpkg -l 2>/dev/null | grep "^ii" | wc -l)"
     echo -e "${CYAN}Version:${NC} ${NEON_PINK}${VERSION}${NC}"
     echo -e "${PURPLE}------------------------------------------------------"

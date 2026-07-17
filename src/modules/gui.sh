@@ -1,10 +1,40 @@
 #!/bin/bash
 # ==============================================================================
-# MODUL GUI – XFCE4, Termux:X11, Resolusi
+# MODUL GUI – Auto-install XFCE4, Termux:X11, dan jalankan GUI
 # ==============================================================================
 
 is_xfce4_installed() {
     proot-distro login ubuntu -- bash -c "command -v startxfce4" >/dev/null 2>&1
+}
+
+install_xfce4_if_needed() {
+    if is_xfce4_installed; then
+        return 0
+    fi
+
+    echo -e "${PROCESS} ${CYAN}XFCE4 belum terinstall. Menginstall sekarang...${NC}"
+    echo -e "${PURPLE}Proses ini memakan waktu (~100-200 MB).${NC}"
+
+    if ! install_ubuntu_if_needed; then
+        echo -e "${ERROR} Ubuntu tidak tersedia."
+        return 1
+    fi
+
+    # Install Termux:X11 jika belum
+    if ! command -v termux-x11 >/dev/null; then
+        pkg install x11-repo termux-x11-nightly -y
+    fi
+
+    proot-distro login ubuntu -- bash -c "apt update && apt install -y xfce4 xfce4-goodies dbus-x11 x11-xserver-utils"
+    if is_xfce4_installed; then
+        echo -e "${SUCCESS} XFCE4 berhasil diinstall."
+        log_info "XFCE4 installed"
+        return 0
+    else
+        echo -e "${ERROR} Gagal install XFCE4."
+        log_error "XFCE4 installation failed"
+        return 1
+    fi
 }
 
 choose_resolution() {
@@ -51,11 +81,9 @@ EOF
 }
 
 launch_gui() {
-    [ "$UBUNTU_INSTALLED" != "yes" ] && { echo -e "${ERROR} Ubuntu tidak terinstall."; return 1; }
-    if ! is_xfce4_installed; then
-        echo -e "${PROCESS} Menginstall XFCE4 (sekali)..."
-        proot-distro login ubuntu -- bash -c "apt update && apt install -y xfce4 xfce4-goodies dbus-x11 x11-xserver-utils"
-        is_xfce4_installed || { echo -e "${ERROR} Gagal install XFCE4."; return 1; }
+    if ! install_xfce4_if_needed; then
+        echo -e "${ERROR} Tidak bisa melanjutkan tanpa XFCE4."
+        return 1
     fi
     choose_resolution
     [ $GUI_CANCELLED -eq 1 ] && return 0

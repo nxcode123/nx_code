@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# KONFIGURASI GLOBAL NX_CODE
+# KONFIGURASI GLOBAL NX_CODE v3.0.0
 # ==============================================================================
 
 VERSION="3.0.0"
@@ -10,7 +10,7 @@ BACKUP_DIR="$CONFIG_DIR/backups"
 LAST_UPDATE_CHECK="$CONFIG_DIR/.last_update_check"
 VERSION_FILE="$CONFIG_DIR/.version"
 
-# --- Konfigurasi GitHub ---
+# --- Konfigurasi GitHub (GANTI DENGAN USERNAME KAMU) ---
 GITHUB_USER="nxcode123"
 GITHUB_REPO="nx_code"
 GITHUB_BRANCH="main"
@@ -20,7 +20,7 @@ GITHUB_RAW_URL="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GIT
 AUTO_UPDATE_ENABLED="true"
 UPDATE_INTERVAL=86400   # 24 jam
 
-# --- Status cache ---
+# --- Status cache (diupdate otomatis) ---
 UBUNTU_INSTALLED="no"
 TERMUX_X11_INSTALLED="no"
 STORAGE_SETUP="no"
