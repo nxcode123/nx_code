@@ -16,6 +16,14 @@ NC='\033[0m'
 SUCCESS="${NEON_GREEN}[✔]${NC}"
 PROCESS="${CYAN}[➔]${NC}"
 
+# --- LOG ERROR (biar output yang kecepetan lewat bisa dibaca ulang nanti) ---
+NX_LOG="$HOME/.nx_code_error.log"
+
+log_section() {
+    echo "" >> "$NX_LOG"
+    echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
+}
+
 # --- FUNGSI CEK STATUS UBUNTU (terpusat) ---
 # Pendekatan paling andal: coba login ke rootfs Ubuntu dan jalankan perintah kosong.
 # Jika berhasil (exit code 0), berarti rootfs benar-benar ada & berfungsi.
@@ -213,9 +221,10 @@ launch_ubuntu_gui() {
     if ! is_xfce4_installed; then
         echo -e "\n${PROCESS} ${CYAN}XFCE4 belum terpasang di Ubuntu. Menginstal sekarang (sekali saja)...${NC}"
         echo -e "${PURPLE}[!] Proses ini bisa memakan waktu cukup lama tergantung koneksi.${NC}"
-        proot-distro login ubuntu -- bash -c "apt update && apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y"
+        log_section "INSTALL XFCE4"
+        proot-distro login ubuntu -- bash -c "apt update && apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" 2>&1 | tee -a "$NX_LOG"
         if ! is_xfce4_installed; then
-            echo -e "${NEON_PINK}[X] Instalasi XFCE4 gagal. Cek koneksi/log di atas.${NC}"
+            echo -e "${NEON_PINK}[X] Instalasi XFCE4 gagal. Cek log lengkap di menu [8] Log error.${NC}"
             return 1
         fi
         echo -e "${SUCCESS} ${WHITE}XFCE4 berhasil dipasang di Ubuntu.${NC}"
@@ -266,7 +275,8 @@ WRAPEOF
     fi
     chmod +x "$HOME/.nx_x11_launch.sh"
 
-    termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" &
+    log_section "GUI LAUNCH (display :2)"
+    termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" 2>&1 | tee -a "$NX_LOG" &
     X11_PID=$!
 
     # Beri waktu server X11 nyala, lalu pastikan prosesnya beneran hidup
@@ -274,6 +284,7 @@ WRAPEOF
     if ! kill -0 "$X11_PID" 2>/dev/null; then
         echo -e "${NEON_PINK}[X] Gagal menyalakan server X11.${NC}"
         echo -e "${PURPLE}[?] Pastikan aplikasi 'Termux:X11' sudah terinstal (dari GitHub/F-Droid, bukan Play Store) dan coba lagi.${NC}"
+        echo -e "${PURPLE}[?] Detail lengkap ada di menu [8] Log error.${NC}"
         return 1
     fi
 
@@ -393,7 +404,8 @@ quick_devtools_installer() {
         esac
 
         echo -e "\n${PROCESS} ${CYAN}Menginstal: ${pkgs}...${NC}"
-        proot-distro login ubuntu -- bash -c "apt update && apt install -y $pkgs"
+        log_section "DEV-TOOLS INSTALL ($pkgs)"
+        proot-distro login ubuntu -- bash -c "apt update && apt install -y $pkgs" 2>&1 | tee -a "$NX_LOG"
         echo -e "${SUCCESS} ${WHITE}Selesai menginstal.${NC}"
     done
 }
@@ -438,6 +450,54 @@ check_for_update() {
     exec bash "$HOME/nx_code.sh"
 }
 
+# --- FUNGSI LIHAT LOG ERROR ---
+# Semua output proses yang gampang "kecepetan lewat" (install XFCE4, nyalain
+# GUI/X11, install dev-tools) direkam ke $NX_LOG lewat 'tee', jadi bisa dibaca
+# ulang santai di sini tanpa harus buru-buru pas kejadian.
+view_error_log() {
+    while true; do
+        echo -e "\n${PURPLE}------------------------------------------------------${NC}"
+        echo -e "${WHITE}LOG ERROR${NC}"
+        echo -e " ${PURPLE}[1]${NC} ${WHITE}Lihat log terbaru (50 baris terakhir)${NC}"
+        echo -e " ${PURPLE}[2]${NC} ${WHITE}Lihat semua log${NC}"
+        echo -e " ${PURPLE}[3]${NC} ${WHITE}Hapus log${NC}"
+        echo -e " ${PURPLE}[4]${NC} ${WHITE}Kembali${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        read log_choice
+
+        case "$log_choice" in
+            1)
+                if [ -s "$NX_LOG" ]; then
+                    echo -e "\n${PURPLE}------------------------------------------------------${NC}"
+                    tail -n 50 "$NX_LOG"
+                    echo -e "${PURPLE}------------------------------------------------------${NC}"
+                else
+                    echo -e "${SUCCESS} ${WHITE}Log masih kosong, belum ada error tercatat.${NC}"
+                fi
+                ;;
+            2)
+                if [ -s "$NX_LOG" ]; then
+                    echo -e "\n${PURPLE}------------------------------------------------------${NC}"
+                    cat "$NX_LOG"
+                    echo -e "${PURPLE}------------------------------------------------------${NC}"
+                    echo -e "${CYAN}[?] Geser/scroll ke atas buat baca dari awal.${NC}"
+                else
+                    echo -e "${SUCCESS} ${WHITE}Log masih kosong, belum ada error tercatat.${NC}"
+                fi
+                ;;
+            3)
+                rm -f "$NX_LOG"
+                echo -e "${SUCCESS} ${WHITE}Log dihapus.${NC}"
+                ;;
+            4) break ;;
+            *)
+                echo -e "${NEON_PINK}[!] Pilihan tidak valid.${NC}"
+                ;;
+        esac
+    done
+}
+
 # --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     animate_logo
@@ -451,7 +511,8 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[5]${NC} ${WHITE}Quick Dev-Tools Installer${NC}"
     echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
     echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
-    echo -e " ${PURPLE}[8]${NC} ${WHITE}Kembali ke home${NC}"
+    echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
+    echo -e " ${PURPLE}[9]${NC} ${WHITE}Kembali ke home${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
     read pilihan
@@ -498,6 +559,11 @@ show_shortcut_menu() {
             show_shortcut_menu
             ;;
         8)
+            view_error_log
+            sleep 1
+            show_shortcut_menu
+            ;;
+        9)
             echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
             ;;
         *)
