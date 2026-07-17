@@ -1,0 +1,26 @@
+
+---
+
+### 📂 **FILE 13: CHANGELOG.md**
+
+```markdown
+# Changelog
+
+## [3.0.0] – 2024-07-17
+### Added
+- **Fully automatic installation** – Ubuntu, XFCE4, Termux:X11 install automatically when needed
+- **Modular architecture** – Clean separation of concerns
+- **One-command installer** – Downloads all components from GitHub
+- **Auto-update** – Checks for updates every 24 hours
+- **Backup Manager** – Backup/restore .bashrc
+
+### Changed
+- Complete rewrite from monolithic to modular
+- All dependencies auto-installed
+- Better error handling and logging
+
+## [2.0.0] – 2024-01-15
+- Legacy monolithic version (no longer maintained)
+
+## [1.0.0] – 2024-01-01
+- Initial release
