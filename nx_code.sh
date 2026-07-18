@@ -230,6 +230,14 @@ launch_ubuntu_gui() {
         echo -e "${SUCCESS} ${WHITE}XFCE4 berhasil dipasang di Ubuntu.${NC}"
     fi
 
+    # Fix kosmetik: xfdesktop nyari wallpaper default Xubuntu yang gak ada
+    # di install xfce4 polos -- bikin placeholder biar gak spam log terus.
+    # Dicek tiap launch (bukan cuma pas install pertama) biar yang sudah
+    # terlanjur install duluan juga ke-fix otomatis.
+    if ! proot-distro login ubuntu -- bash -c "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]" >/dev/null 2>&1; then
+        proot-distro login ubuntu -- bash -c "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png" 2>/dev/null
+    fi
+
     # Setup user non-root (sekali saja) -- banyak app (Chromium/Electron) menolak
     # jalan sebagai root, jadi sesi GUI dijalankan pakai user biasa ($NX_USER).
     if ! is_nonroot_user_setup; then
