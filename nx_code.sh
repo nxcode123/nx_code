@@ -8,13 +8,66 @@ NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/n
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
 NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/scripts"
 
-# --- WARNA CYBERPUNK (ANSI) ---
-CYAN='\033[0;36m'
-NEON_GREEN='\033[1;32m'
-NEON_PINK='\033[1;95m'
-PURPLE='\033[0;35m'
-WHITE='\033[1;37m'
-NC='\033[0m'
+# --- KONFIGURASI TEMA WARNA ---
+NX_THEME_FILE="$HOME/.nx_code_theme"
+NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
+
+load_theme() {
+    local theme="cyberpunk"
+    if [ -f "$NX_THEME_FILE" ]; then
+        theme=$(cat "$NX_THEME_FILE" 2>/dev/null)
+    fi
+
+    case "$theme" in
+        matrix)
+            CYAN='\033[0;32m'
+            NEON_GREEN='\033[1;92m'
+            NEON_PINK='\033[1;32m'
+            PURPLE='\033[2;32m'
+            WHITE='\033[1;37m'
+            ;;
+        dracula)
+            CYAN='\033[0;36m'
+            NEON_GREEN='\033[1;92m'
+            NEON_PINK='\033[1;35m'
+            PURPLE='\033[0;35m'
+            WHITE='\033[1;37m'
+            ;;
+        ocean)
+            CYAN='\033[0;34m'
+            NEON_GREEN='\033[1;36m'
+            NEON_PINK='\033[1;34m'
+            PURPLE='\033[0;36m'
+            WHITE='\033[1;37m'
+            ;;
+        sunset)
+            CYAN='\033[0;33m'
+            NEON_GREEN='\033[1;33m'
+            NEON_PINK='\033[1;31m'
+            PURPLE='\033[0;31m'
+            WHITE='\033[1;37m'
+            ;;
+        mono)
+            CYAN='\033[0;37m'
+            NEON_GREEN='\033[1;37m'
+            NEON_PINK='\033[1;37m'
+            PURPLE='\033[2;37m'
+            WHITE='\033[1;37m'
+            ;;
+        *)
+            theme="cyberpunk"
+            CYAN='\033[0;36m'
+            NEON_GREEN='\033[1;32m'
+            NEON_PINK='\033[1;95m'
+            PURPLE='\033[0;35m'
+            WHITE='\033[1;37m'
+            ;;
+    esac
+
+    NX_CURRENT_THEME="$theme"
+    NC='\033[0m'
+}
+load_theme
 
 # --- STATUS SIMBOL ---
 SUCCESS="${NEON_GREEN}[✔]${NC}"
@@ -115,7 +168,7 @@ animate_logo() {
         printf "${CYAN}%s${NC}\n" "$line"
     done
     echo -e "${PURPLE}------------------------------------------------------${NC}"
-    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}CYBERPUNK v1.0.1${NC}"
+    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${NX_CURRENT_THEME^^}${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo ""
 }
@@ -461,6 +514,49 @@ view_error_log() {
     done
 }
 
+# --- FUNGSI GANTI TEMA WARNA ---
+select_theme_menu() {
+    while true; do
+        echo -e "\n${PURPLE}------------------------------------------------------${NC}"
+        echo -e "${WHITE}PILIH TEMA WARNA${NC} ${CYAN}(aktif: ${NX_CURRENT_THEME})${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+
+        local i=1
+        for t in "${NX_AVAILABLE_THEMES[@]}"; do
+            if [ "$t" == "$NX_CURRENT_THEME" ]; then
+                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${t}${NC} ${NEON_GREEN}[✔ aktif]${NC}"
+            else
+                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${t}${NC}"
+            fi
+            i=$((i+1))
+        done
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        read theme_choice
+
+        if [ "$theme_choice" == "0" ]; then
+            break
+        fi
+
+        local idx=$((theme_choice - 1))
+        local chosen="${NX_AVAILABLE_THEMES[$idx]:-}"
+
+        if [ -z "$chosen" ]; then
+            echo -e "${NEON_PINK}[!] Pilihan tidak valid.${NC}"
+            continue
+        fi
+
+        echo "$chosen" > "$NX_THEME_FILE"
+        load_theme
+        SUCCESS="${NEON_GREEN}[✔]${NC}"
+        PROCESS="${CYAN}[➔]${NC}"
+
+        animate_logo
+        echo -e "${SUCCESS} ${WHITE}Tema berhasil diganti ke: ${NEON_GREEN}${chosen}${NC}"
+    done
+}
+
 # --- FUNGSI APP STORE ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
@@ -611,6 +707,7 @@ show_shortcut_menu() {
         echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
         echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
         echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
+        echo -e " ${PURPLE}[10]${NC} ${WHITE}Ganti Tema Warna${NC} ${CYAN}(aktif: ${NX_CURRENT_THEME})${NC}"
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
         echo -e "${NEON_PINK}======================================================${NC}"
         echo -ne "${CYAN}[?] Select Option:${NC} "
@@ -658,6 +755,10 @@ show_shortcut_menu() {
                 ;;
             9)
                 app_store_menu
+                sleep 1
+                ;;
+            10)
+                select_theme_menu
                 sleep 1
                 ;;
             0)
