@@ -28,11 +28,25 @@ log_section() {
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
 }
 
+# --- FUNGSI CEK PLACEHOLDER URL BELUM DIGANTI ---
+check_placeholder_urls() {
+    local placeholder="nxcode123"
+    local found=0
+    if [[ "$NX_CODE_REPO_RAW_URL" == *"$placeholder"* ]]; then
+        found=1
+    fi
+    if [[ "$NX_APPS_MANIFEST_URL" == *"$placeholder"* ]] || [[ "$NX_APPS_SCRIPTS_BASE_URL" == *"$placeholder"* ]]; then
+        found=1
+    fi
+    if [ "$found" -eq 1 ]; then
+        echo -e "${NEON_PINK}[!] PERINGATAN: URL repo GitHub masih pakai placeholder '${placeholder}'.${NC}"
+        echo -e "${PURPLE}    Fitur Check Update & App Store TIDAK akan berfungsi sampai kamu ganti${NC}"
+        echo -e "${PURPLE}    NX_CODE_REPO_RAW_URL, NX_APPS_MANIFEST_URL, dan NX_APPS_SCRIPTS_BASE_URL${NC}"
+        echo -e "${PURPLE}    di bagian atas $HOME/nx_code.sh dengan username GitHub kamu sendiri.${NC}"
+    fi
+}
+
 # --- FUNGSI CEK STATUS UBUNTU (terpusat) ---
-# Pendekatan paling andal: coba login ke rootfs Ubuntu dan jalankan perintah kosong.
-# Jika berhasil (exit code 0), berarti rootfs benar-benar ada & berfungsi.
-# Ini tidak bergantung pada format output "proot-distro list" atau lokasi folder
-# rootfs yang bisa berbeda antar versi proot-distro/perangkat.
 is_ubuntu_installed() {
     proot-distro login ubuntu -- true >/dev/null 2>&1
 }
@@ -48,9 +62,6 @@ is_xfce4_installed() {
 }
 
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
-# Banyak aplikasi (Chromium, Electron: VS Code, Discord, dll) menolak jalan
-# sebagai root dan/atau minta --no-sandbox. Solusinya: sesi GUI jalan pakai
-# user biasa (bukan root), plus ELECTRON_DISABLE_SANDBOX=true secara global.
 NX_USER="nxuser"
 
 is_nonroot_user_setup() {
@@ -63,17 +74,12 @@ setup_nonroot_user() {
         echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
         chmod 0440 /etc/sudoers.d/$NX_USER
         mkdir -p /storage
-        chmod 777 /storage
+        chmod 755 /storage
         grep -q ELECTRON_DISABLE_SANDBOX /etc/environment 2>/dev/null || echo 'ELECTRON_DISABLE_SANDBOX=true' >> /etc/environment
     "
 }
 
 # --- FUNGSI CEK STATUS SHARED STORAGE ---
-# Dianggap "siap" kalau user sudah pernah jalankan 'termux-setup-storage' manual
-# (itu yang bikin folder $HOME/storage/shared muncul).
-# CATATAN: proot-distro login Ubuntu SUDAH otomatis nge-bind storage ke /storage
-# bawaan dari sononya begitu ini siap -- jadi TIDAK perlu --bind manual lagi
-# (nambahin manual malah bikin konflik "overlaps with an existing one").
 is_storage_setup() {
     [ -d "$HOME/storage/shared" ]
 }
@@ -166,9 +172,6 @@ choose_resolution() {
 }
 
 # --- FUNGSI TULIS SCRIPT STARTUP GUI KE DALAM UBUNTU ---
-# Modeline dihitung otomatis pakai 'cvt' saat script dijalankan (bukan hardcode),
-# supaya akurat untuk resolusi non-standar (mis. portrait) sekalipun.
-# Ditulis ke /usr/local/bin (bukan /root) supaya bisa diakses user non-root (nxuser).
 write_gui_startup_script() {
     proot-distro login ubuntu -- bash -c "cat > /usr/local/bin/nx-gui-startup.sh" << EOF
 #!/bin/bash
@@ -191,17 +194,9 @@ EOF
     proot-distro login ubuntu -- bash -c "chmod 755 /usr/local/bin/nx-gui-startup.sh"
 }
 
-# --- FUNGSI FIX OTOMATIS "--no-sandbox" (CHROMIUM/ELECTRON DI DALAM PROOT) ---
-# proot tidak mendukung fitur sandbox kernel (user namespace/seccomp) yang
-# dibutuhkan Chromium & Electron apps (Chrome, VSCode, Discord, dll), jadi
-# mereka nolak jalan tanpa flag --no-sandbox. Fungsi ini bikin wrapper otomatis
-# di /usr/local/bin (lebih prioritas di PATH) supaya flag itu ke-apply otomatis,
-# baik dibuka dari terminal maupun diklik dari ikon desktop XFCE.
+# --- FUNGSI FIX OTOMATIS "--no-sandbox" ---
 setup_no_sandbox_fix() {
-    # Fix generik buat semua Electron app (VSCode, Discord, Slack, dst)
     proot-distro login ubuntu -- bash -c "mkdir -p /etc/profile.d; echo 'export ELECTRON_DISABLE_SANDBOX=1' > /etc/profile.d/nx_no_sandbox.sh" >/dev/null 2>&1
-
-    # Wrapper khusus browser Chromium-based
     local apps="google-chrome google-chrome-stable chromium chromium-browser"
     local app
     for app in $apps; do
@@ -209,7 +204,7 @@ setup_no_sandbox_fix() {
     done
 }
 
-# --- FUNGSI LAUNCH GUI UBUNTU (XFCE4 VIA TERMUX-X11) ---
+# --- FUNGSI LAUNCH GUI UBUNTU ---
 launch_ubuntu_gui() {
     if ! is_ubuntu_installed; then
         echo -e "\n${NEON_PINK}[X] Error: Ubuntu OS belum diinstal.${NC}"
@@ -221,7 +216,6 @@ launch_ubuntu_gui() {
         return 1
     fi
 
-    # Setup xfce4 di dalam Ubuntu kalau belum ada (sekali saja)
     if ! is_xfce4_installed; then
         echo -e "\n${PROCESS} ${CYAN}XFCE4 belum terpasang di Ubuntu. Menginstal sekarang (sekali saja)...${NC}"
         echo -e "${PURPLE}[!] Proses ini bisa memakan waktu cukup lama tergantung koneksi.${NC}"
@@ -234,16 +228,10 @@ launch_ubuntu_gui() {
         echo -e "${SUCCESS} ${WHITE}XFCE4 berhasil dipasang di Ubuntu.${NC}"
     fi
 
-    # Fix kosmetik: xfdesktop nyari wallpaper default Xubuntu yang gak ada
-    # di install xfce4 polos -- bikin placeholder biar gak spam log terus.
-    # Dicek tiap launch (bukan cuma pas install pertama) biar yang sudah
-    # terlanjur install duluan juga ke-fix otomatis.
     if ! proot-distro login ubuntu -- bash -c "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]" >/dev/null 2>&1; then
         proot-distro login ubuntu -- bash -c "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png" 2>/dev/null
     fi
 
-    # Setup user non-root (sekali saja) -- banyak app (Chromium/Electron) menolak
-    # jalan sebagai root, jadi sesi GUI dijalankan pakai user biasa ($NX_USER).
     if ! is_nonroot_user_setup; then
         echo -e "\n${PROCESS} ${CYAN}Menyiapkan user non-root '$NX_USER' (sekali saja)...${NC}"
         setup_nonroot_user
@@ -254,7 +242,6 @@ launch_ubuntu_gui() {
         fi
     fi
 
-    # Terapkan fix no-sandbox otomatis (murah/cepat, aman dijalankan tiap kali)
     setup_no_sandbox_fix
 
     choose_resolution
@@ -264,16 +251,11 @@ launch_ubuntu_gui() {
     fi
     write_gui_startup_script
 
-    # Bersihkan sesi X11 lama (kalau ada) supaya display :2 tidak bentrok
     pkill -f "termux-x11" >/dev/null 2>&1
     sleep 1
 
     echo -e "\n${PROCESS} ${CYAN}Menyalakan server X11 (display :2) & masuk ke Ubuntu XFCE4...${NC}"
 
-    # Bikin wrapper script pendek di sisi Termux -- -xstartup langsung dikasih
-    # command panjang (banyak flag) bikin termux-x11 salah parsing argumen ke
-    # X server ("Command line argument... too long" / "unsafe environment").
-    # Solusinya: -xstartup cukup manggil 1 file pendek ini.
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
@@ -291,42 +273,36 @@ WRAPEOF
     termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" 2>&1 | tee -a "$NX_LOG" &
     X11_PID=$!
 
-    # Beri waktu server X11 nyala, lalu pastikan prosesnya beneran hidup
     sleep 2
     if ! kill -0 "$X11_PID" 2>/dev/null; then
         echo -e "${NEON_PINK}[X] Gagal menyalakan server X11.${NC}"
-        echo -e "${PURPLE}[?] Pastikan aplikasi 'Termux:X11' sudah terinstal (dari GitHub/F-Droid, bukan Play Store) dan coba lagi.${NC}"
+        echo -e "${PURPLE}[?] Pastikan aplikasi 'Termux:X11' sudah terinstal dan coba lagi.${NC}"
         echo -e "${PURPLE}[?] Detail lengkap ada di menu [8] Log error.${NC}"
         return 1
     fi
 
-    # Coba buka otomatis aplikasi Termux:X11 di Android
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
 
     echo -e "${PROCESS} ${CYAN}Buka aplikasi 'Termux:X11' di Android kalau belum otomatis terbuka.${NC}\n"
 
-    # Animasi berjalan selama sesi GUI aktif, berhenti otomatis saat sesi ditutup
     show_futuristic_progress "GUI Ubuntu Aktif (Termux:X11)..." "$X11_PID"
-
-    # Pastikan proses benar-benar selesai sebelum lanjut
     wait "$X11_PID" 2>/dev/null
 
     echo -e "\n${NEON_GREEN}[➔] Sesi GUI Ubuntu ditutup.${NC}"
 }
 
-# --- FUNGSI KILL GUI UBUNTU (XFCE4 & TERMUX-X11) ---
+# --- FUNGSI KILL GUI UBUNTU ---
 kill_ubuntu_gui() {
     echo -e "\n${PROCESS} ${CYAN}Mematikan sesi GUI Ubuntu (XFCE4 & Termux:X11)...${NC}"
 
     local found=0
 
-    # Matikan proses termux-x11 (server display) di sisi Termux
     if pkill -f "termux-x11" >/dev/null 2>&1; then
         found=1
     fi
 
-    # Matikan proses xfce4/dbus di dalam rootfs Ubuntu
-    if proot-distro login ubuntu -- bash -c "pkill -f 'xfce4|dbus-launch|Xwayland'" >/dev/null 2>&1; then
+    # Update: Targetkan proses xfce hanya untuk nxuser agar tidak menabrak proses lain
+    if proot-distro login ubuntu -- bash -c "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'" >/dev/null 2>&1; then
         found=1
     fi
 
@@ -339,7 +315,7 @@ kill_ubuntu_gui() {
     fi
 }
 
-# --- FUNGSI CEK SESI GUI YANG AKTIF (DETEKSI STALE) ---
+# --- FUNGSI CEK SESI GUI AKTIF ---
 check_gui_session() {
     echo -e "\n${PROCESS} ${CYAN}Mengecek sesi GUI yang sedang aktif...${NC}\n"
 
@@ -381,7 +357,7 @@ check_gui_session() {
     fi
 }
 
-# --- FUNGSI QUICK DEV-TOOLS INSTALLER DI DALAM UBUNTU ---
+# --- FUNGSI QUICK DEV-TOOLS INSTALLER ---
 quick_devtools_installer() {
     if ! is_ubuntu_installed; then
         echo -e "\n${NEON_PINK}[X] Error: Ubuntu OS belum diinstal.${NC}"
@@ -422,17 +398,14 @@ quick_devtools_installer() {
     done
 }
 
-# --- FUNGSI CHECK UPDATE (AMBIL VERSI TERBARU DARI GITHUB) ---
-# Alur: download versi terbaru -> bandingkan sama file lokal -> kalau beda,
-# timpa file lokal, bersihkan blok NX_CODE ENVIRONMENT lama di .bashrc,
-# lalu jalankan ulang installer (otomatis reinstall + reboot terminal).
+# --- FUNGSI CHECK UPDATE ---
 check_for_update() {
     echo -e "\n${PROCESS} ${CYAN}Mengecek update dari GitHub...${NC}"
 
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
     rm -f "$tmp_file"
 
-    if ! curl -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null; then
+    if ! curl --max-time 20 --retry 2 --retry-delay 2 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null; then
         echo -e "${NEON_PINK}[X] Gagal mengambil update. Cek koneksi internet atau URL repo di NX_CODE_REPO_RAW_URL.${NC}"
         rm -f "$tmp_file"
         return 1
@@ -454,7 +427,6 @@ check_for_update() {
     mv "$tmp_file" "$HOME/nx_code.sh"
     chmod +x "$HOME/nx_code.sh"
 
-    # Bersihkan blok NX_CODE ENVIRONMENT lama di .bashrc supaya diinjeksi ulang fresh
     sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
 
     echo -e "${PROCESS} ${CYAN}Menjalankan ulang installer (reinstall + restart terminal)...${NC}"
@@ -463,9 +435,6 @@ check_for_update() {
 }
 
 # --- FUNGSI LIHAT LOG ERROR ---
-# Semua output proses yang gampang "kecepetan lewat" (install XFCE4, nyalain
-# GUI/X11, install dev-tools) direkam ke $NX_LOG lewat 'tee', jadi bisa dibaca
-# ulang santai di sini tanpa harus buru-buru pas kejadian.
 view_error_log() {
     while true; do
         echo -e "\n${PURPLE}------------------------------------------------------${NC}"
@@ -510,10 +479,7 @@ view_error_log() {
     done
 }
 
-# --- FUNGSI APP STORE (AMBIL DAFTAR APP DARI REPO KE-2) ---
-# Format apps.list: Nama|nama_script.sh|Deskripsi|file.desktop (kolom ke-4 opsional)
-# Script installer masing-masing ada di scripts/<nama_script.sh> di repo yang sama.
-# Kolom ke-4 (nama file .desktop) dipakai buat bikin shortcut otomatis di Desktop XFCE.
+# --- FUNGSI APP STORE ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
         echo -e "\n${NEON_PINK}[X] Error: Ubuntu OS belum diinstal.${NC}"
@@ -525,7 +491,7 @@ app_store_menu() {
     local manifest="$HOME/.nx_apps_manifest.tmp"
     rm -f "$manifest"
 
-    if ! curl -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest" 2>/dev/null; then
+    if ! curl --max-time 20 --retry 2 --retry-delay 2 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest" 2>/dev/null; then
         echo -e "${NEON_PINK}[X] Gagal ambil daftar app. Cek koneksi internet atau URL di NX_APPS_MANIFEST_URL.${NC}"
         rm -f "$manifest"
         return 1
@@ -536,6 +502,10 @@ app_store_menu() {
         rm -f "$manifest"
         return 1
     fi
+
+    # Bersihkan CRLF (Windows line ending) dari manifest sebelum diparse,
+    # supaya field terakhir (nama file .desktop) tidak kebawa '\r' tersembunyi.
+    sed -i 's/\r$//' "$manifest" 2>/dev/null
 
     local names=() scripts=() descs=() desktops=()
     while IFS='|' read -r a_name a_script a_desc a_desktop; do
@@ -552,8 +522,6 @@ app_store_menu() {
         return 1
     fi
 
-    # Cek status terinstall buat semua app sekaligus (1x login proot, bukan per-app)
-    # supaya gak lambat. Cuma app yang punya kolom file.desktop yang bisa dicek.
     local installed=()
     local check_cmd=""
     for i in "${!names[@]}"; do
@@ -599,10 +567,30 @@ app_store_menu() {
 
         echo -e "\n${PROCESS} ${CYAN}Menginstal ${names[$idx]}...${NC}"
         log_section "APP INSTALL: ${names[$idx]}"
-        proot-distro login ubuntu -- bash -c "$(curl -fsSL "$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}" 2>/dev/null)" 2>&1 | tee -a "$NX_LOG"
-        echo -e "${SUCCESS} ${WHITE}Selesai instal ${names[$idx]}.${NC}"
 
-        # Bikin shortcut otomatis di Desktop XFCE kalau nama file .desktop-nya dikasih di manifest
+        # Update: Eksekusi yang diunduh ke file temporary, bukan blind curl | bash
+        local target_url="$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}"
+        local tmp_script="$HOME/.tmp_install_$(basename "${scripts[$idx]}")"
+
+        if curl --max-time 30 --retry 2 --retry-delay 2 -fsSL "$target_url" -o "$tmp_script"; then
+            if [ -s "$tmp_script" ]; then
+                echo -e "${PROCESS} ${CYAN}Menjalankan script instalasi...${NC}"
+                proot-distro login ubuntu -- bash < "$tmp_script" 2>&1 | tee -a "$NX_LOG"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    echo -e "${SUCCESS} ${WHITE}Selesai instal ${names[$idx]}.${NC}"
+                else
+                    echo -e "${NEON_PINK}[X] Terjadi error saat instalasi ${names[$idx]}. Cek log!${NC}"
+                fi
+            else
+                echo -e "${NEON_PINK}[X] Gagal: Script yang diunduh kosong atau URL tidak valid.${NC}"
+            fi
+        else
+            echo -e "${NEON_PINK}[X] Gagal mengunduh script. Cek koneksi internet Anda.${NC}"
+        fi
+
+        rm -f "$tmp_script"
+
         local d_file="${desktops[$idx]}"
         if [ -n "$d_file" ] && is_nonroot_user_setup; then
             proot-distro login ubuntu -- bash -c "
@@ -617,7 +605,6 @@ app_store_menu() {
             echo -e "${PURPLE}[i] Shortcut ditambahkan ke Desktop (kalau perlu, klik kanan > Allow Launching sekali pertama).${NC}"
         fi
 
-        # Update status ceklis di memori biar langsung kelihatan "Terinstall" di menu
         if [ -n "$d_file" ]; then
             if proot-distro login ubuntu -- bash -c "[ -f /usr/share/applications/$d_file ]" >/dev/null 2>&1; then
                 installed[$idx]=1
@@ -628,84 +615,80 @@ app_store_menu() {
 
 # --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
-    animate_logo
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e "${WHITE}           NX_CODE CORE INTERFACE v1.0.1              ${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
-    echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
-    echo -e " ${PURPLE}[4]${NC} ${WHITE}Cek sesi xfce yang aktif${NC}"
-    echo -e " ${PURPLE}[5]${NC} ${WHITE}Quick Dev-Tools Installer${NC}"
-    echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
-    echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
-    echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
-    echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
-    echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -ne "${CYAN}[?] Select Option:${NC} "
-    read pilihan
+    while true; do
+        animate_logo
+        check_placeholder_urls
+        echo -e "${NEON_PINK}======================================================${NC}"
+        echo -e "${WHITE}           NX_CODE CORE INTERFACE v1.0.1              ${NC}"
+        echo -e "${NEON_PINK}======================================================${NC}"
+        echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
+        echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
+        echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
+        echo -e " ${PURPLE}[4]${NC} ${WHITE}Cek sesi xfce yang aktif${NC}"
+        echo -e " ${PURPLE}[5]${NC} ${WHITE}Quick Dev-Tools Installer${NC}"
+        echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
+        echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
+        echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
+        echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
+        echo -e "${NEON_PINK}======================================================${NC}"
+        echo -ne "${CYAN}[?] Select Option:${NC} "
+        read pilihan
 
-    case $pilihan in
-        1)
-            echo -e "\n${PROCESS} ${CYAN}Launching Ubuntu CLI Core...${NC}"
-            sleep 1
-            if is_ubuntu_installed; then
-                proot-distro login ubuntu
-            else
-                echo -e "${NEON_PINK}[X] Error: Ubuntu OS belum diinstal. Jalankan ulang script secara manual.${NC}"
-            fi
-            ;;
-        2)
-            launch_ubuntu_gui
-            sleep 1
-            show_shortcut_menu
-            ;;
-        3)
-            kill_ubuntu_gui
-            sleep 1
-            show_shortcut_menu
-            ;;
-        4)
-            check_gui_session
-            sleep 1
-            show_shortcut_menu
-            ;;
-        5)
-            quick_devtools_installer
-            sleep 1
-            show_shortcut_menu
-            ;;
-        6)
-            echo -e "\n${PROCESS} ${CYAN}Booting HTop System Monitor...${NC}"
-            sleep 0.5
-            htop
-            show_shortcut_menu
-            ;;
-        7)
-            check_for_update
-            sleep 1
-            show_shortcut_menu
-            ;;
-        8)
-            view_error_log
-            sleep 1
-            show_shortcut_menu
-            ;;
-        9)
-            app_store_menu
-            sleep 1
-            show_shortcut_menu
-            ;;
-        0)
-            echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
-            ;;
-        *)
-            echo -e "\n\033[1;95m[!] ALERT: INVALID OPTION SELECTED.\033[0m"
-            sleep 1
-            show_shortcut_menu
-            ;;
-    esac
+        case $pilihan in
+            1)
+                echo -e "\n${PROCESS} ${CYAN}Launching Ubuntu CLI Core...${NC}"
+                sleep 1
+                if is_ubuntu_installed; then
+                    proot-distro login ubuntu
+                else
+                    echo -e "${NEON_PINK}[X] Error: Ubuntu OS belum diinstal. Jalankan ulang script secara manual.${NC}"
+                fi
+                sleep 1
+                ;;
+            2)
+                launch_ubuntu_gui
+                sleep 1
+                ;;
+            3)
+                kill_ubuntu_gui
+                sleep 1
+                ;;
+            4)
+                check_gui_session
+                sleep 1
+                ;;
+            5)
+                quick_devtools_installer
+                sleep 1
+                ;;
+            6)
+                echo -e "\n${PROCESS} ${CYAN}Booting HTop System Monitor...${NC}"
+                sleep 0.5
+                htop
+                ;;
+            7)
+                check_for_update
+                sleep 1
+                ;;
+            8)
+                view_error_log
+                sleep 1
+                ;;
+            9)
+                app_store_menu
+                sleep 1
+                ;;
+            0)
+                echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
+                break
+                ;;
+            *)
+                echo -e "\n\033[1;95m[!] ALERT: INVALID OPTION SELECTED.\033[0m"
+                sleep 1
+                ;;
+        esac
+    done
 }
 
 if [ "$1" == "--logo-only" ]; then
@@ -743,9 +726,6 @@ if [ "$1" == "--ui-only" ]; then
         echo -e " ${NEON_PINK}[X] Storage Not Setup${NC} ${PURPLE}(jalankan manual: termux-setup-storage)${NC}"
     fi
 
-    # Auto-cleaner: hanya jalan sekali per hari (bukan di setiap sesi terminal)
-    # supaya tidak menghapus file sementara yang sedang dipakai proses lain,
-    # dan tidak membebani setiap kali buka terminal.
     LAST_CLEAN_FILE="$HOME/.nx_code_last_clean"
     TODAY=$(date +%Y%m%d)
     LAST_CLEAN=""
@@ -754,7 +734,6 @@ if [ "$1" == "--ui-only" ]; then
     if [ "$TODAY" != "$LAST_CLEAN" ]; then
         (
             pkg clean -y
-            # Guard: hanya hapus jika TMPDIR benar-benar terset dan merupakan direktori valid
             if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then
                 rm -rf "${TMPDIR:?}"/* 2>/dev/null
             fi
@@ -768,6 +747,7 @@ if [ "$1" == "--ui-only" ]; then
         echo "$TODAY" > "$LAST_CLEAN_FILE"
     fi
 
+    check_placeholder_urls
     echo -e "${PURPLE}Untuk masuk ke menu ketik ${CYAN}nx-menu${NC}\n"
     exit 0
 fi
@@ -792,7 +772,6 @@ show_futuristic_progress "Adding X11 Repository..." $!
 (pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
 show_futuristic_progress "Deploying X11 Display Server..." $!
 
-# Cek & Install Ubuntu menggunakan fungsi deteksi terpusat
 if ! is_ubuntu_installed; then
     echo -e "${PROCESS} ${CYAN}Mempersiapkan unduhan Ubuntu OS...${NC}"
     proot-distro remove ubuntu > /dev/null 2>&1
@@ -818,14 +797,10 @@ else
 fi
 echo ""
 
-# --- SALIN SCRIPT KE LOKASI PERMANEN ---
-# Diperbaiki: mendukung eksekusi via `bash <(wget -qO- URL)` atau `wget script.sh && bash script.sh`,
-# di mana "$0" bisa berupa "bash" atau path sementara yang tidak valid dengan realpath.
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
     local src=""
 
-    # Coba dapatkan path script yang sebenarnya jika dijalankan sebagai file biasa
     if [ -n "$BASH_SOURCE" ] && [ -f "${BASH_SOURCE[0]}" ]; then
         src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
     elif [ -f "$0" ]; then
@@ -838,8 +813,6 @@ copy_self_to_home() {
         return 0
     fi
 
-    # Fallback: jika dijalankan lewat pipe (curl/wget | bash) dan tidak ada file fisik,
-    # dan file tujuan belum ada, beri tahu user secara eksplisit alih-alih gagal diam-diam.
     if [ ! -f "$dest" ]; then
         return 1
     fi
@@ -853,7 +826,6 @@ else
     echo -e "${PURPLE}    Silakan download file-nya dulu (mis. wget URL -O nx_code.sh) lalu jalankan: bash nx_code.sh${NC}"
 fi
 
-# Migrasi: hapus flag -i dari rm() kalau sempat ke-inject di .bashrc versi lama
 if grep -q 'command rm -i "\$@"' "$HOME/.bashrc" 2>/dev/null; then
     sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc"
 fi
@@ -916,6 +888,8 @@ echo -e "${NEON_GREEN}[Complete]${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
 echo -e "${NEON_GREEN}          SYSTEM INITIALIZED. NX_CODE ACTIVE.          ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
+
+check_placeholder_urls
 
 echo -e "${WHITE}Menu :${NC}"
 echo -e " ${PURPLE}[1]${NC} ${WHITE}Restart${NC}"
