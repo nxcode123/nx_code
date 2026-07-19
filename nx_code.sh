@@ -5,8 +5,8 @@
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
 # --- KONFIGURASI APP STORE (REPO KE-2, GANTI KALAU NAMA REPO BEDA) ---
-NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_apps/main/apps.list"
-NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_apps/main/scripts"
+NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
+NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/scripts"
 
 # --- WARNA CYBERPUNK (ANSI) ---
 CYAN='\033[0;36m'
