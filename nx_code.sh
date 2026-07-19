@@ -511,8 +511,9 @@ view_error_log() {
 }
 
 # --- FUNGSI APP STORE (AMBIL DAFTAR APP DARI REPO KE-2) ---
-# Format apps.list: Nama|nama_script.sh|Deskripsi singkat (satu baris per app)
+# Format apps.list: Nama|nama_script.sh|Deskripsi|file.desktop (kolom ke-4 opsional)
 # Script installer masing-masing ada di scripts/<nama_script.sh> di repo yang sama.
+# Kolom ke-4 (nama file .desktop) dipakai buat bikin shortcut otomatis di Desktop XFCE.
 app_store_menu() {
     if ! is_ubuntu_installed; then
         echo -e "\n${NEON_PINK}[X] Error: Ubuntu OS belum diinstal.${NC}"
@@ -536,12 +537,13 @@ app_store_menu() {
         return 1
     fi
 
-    local names=() scripts=() descs=()
-    while IFS='|' read -r a_name a_script a_desc; do
+    local names=() scripts=() descs=() desktops=()
+    while IFS='|' read -r a_name a_script a_desc a_desktop; do
         [ -z "$a_name" ] && continue
         names+=("$a_name")
         scripts+=("$a_script")
         descs+=("$a_desc")
+        desktops+=("$a_desktop")
     done < "$manifest"
     rm -f "$manifest"
 
@@ -550,11 +552,35 @@ app_store_menu() {
         return 1
     fi
 
+    # Cek status terinstall buat semua app sekaligus (1x login proot, bukan per-app)
+    # supaya gak lambat. Cuma app yang punya kolom file.desktop yang bisa dicek.
+    local installed=()
+    local check_cmd=""
+    for i in "${!names[@]}"; do
+        installed[$i]=0
+        if [ -n "${desktops[$i]}" ]; then
+            check_cmd+="[ -f /usr/share/applications/${desktops[$i]} ] && echo FOUND_$i; "
+        fi
+    done
+    if [ -n "$check_cmd" ]; then
+        local check_result
+        check_result=$(proot-distro login ubuntu -- bash -c "$check_cmd" 2>/dev/null)
+        for i in "${!names[@]}"; do
+            if echo "$check_result" | grep -q "^FOUND_${i}$"; then
+                installed[$i]=1
+            fi
+        done
+    fi
+
     while true; do
         echo -e "\n${PURPLE}------------------------------------------------------${NC}"
         echo -e "${WHITE}APP STORE${NC}"
         for i in "${!names[@]}"; do
-            printf " ${PURPLE}[%d]${NC} ${WHITE}%s${NC} ${CYAN}- %s${NC}\n" "$((i+1))" "${names[$i]}" "${descs[$i]}"
+            if [ "${installed[$i]}" -eq 1 ]; then
+                printf " ${PURPLE}[%d]${NC} ${WHITE}%s${NC} ${CYAN}- %s${NC} ${NEON_GREEN}[✔ Terinstall]${NC}\n" "$((i+1))" "${names[$i]}" "${descs[$i]}"
+            else
+                printf " ${PURPLE}[%d]${NC} ${WHITE}%s${NC} ${CYAN}- %s${NC}\n" "$((i+1))" "${names[$i]}" "${descs[$i]}"
+            fi
         done
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         echo -e "${PURPLE}------------------------------------------------------${NC}"
@@ -575,6 +601,28 @@ app_store_menu() {
         log_section "APP INSTALL: ${names[$idx]}"
         proot-distro login ubuntu -- bash -c "$(curl -fsSL "$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}" 2>/dev/null)" 2>&1 | tee -a "$NX_LOG"
         echo -e "${SUCCESS} ${WHITE}Selesai instal ${names[$idx]}.${NC}"
+
+        # Bikin shortcut otomatis di Desktop XFCE kalau nama file .desktop-nya dikasih di manifest
+        local d_file="${desktops[$idx]}"
+        if [ -n "$d_file" ] && is_nonroot_user_setup; then
+            proot-distro login ubuntu -- bash -c "
+                if [ -f /usr/share/applications/$d_file ]; then
+                    mkdir -p /home/$NX_USER/Desktop
+                    cp /usr/share/applications/$d_file /home/$NX_USER/Desktop/
+                    chmod +x /home/$NX_USER/Desktop/$d_file
+                    chown -R $NX_USER:$NX_USER /home/$NX_USER/Desktop
+                    gio set /home/$NX_USER/Desktop/$d_file metadata::trusted true 2>/dev/null || true
+                fi
+            " >/dev/null 2>&1
+            echo -e "${PURPLE}[i] Shortcut ditambahkan ke Desktop (kalau perlu, klik kanan > Allow Launching sekali pertama).${NC}"
+        fi
+
+        # Update status ceklis di memori biar langsung kelihatan "Terinstall" di menu
+        if [ -n "$d_file" ]; then
+            if proot-distro login ubuntu -- bash -c "[ -f /usr/share/applications/$d_file ]" >/dev/null 2>&1; then
+                installed[$idx]=1
+            fi
+        fi
     done
 }
 
