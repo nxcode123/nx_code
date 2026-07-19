@@ -730,13 +730,8 @@ if [ "$1" == "--ui-only" ]; then
 
     echo -e "${NEON_PINK}======================================================${NC}"
     echo ""
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}NX-Menu${NC}"
+    echo -e " ${NEON_PINK}[ ! ]${NC} ${WHITE}ketik ${CYAN}nx-menu${WHITE} untuk akses menu${NC}"
     echo ""
-    echo -ne "${CYAN}[?] Pilihan:${NC} "
-    read ui_choice
-    if [ "$ui_choice" == "1" ]; then
-        show_shortcut_menu
-    fi
     exit 0
 fi
 
