@@ -4,6 +4,10 @@
 # Ganti USERNAME di bawah dengan username GitHub kamu sebelum publish/pakai fitur update.
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
+# --- KONFIGURASI APP STORE (REPO KE-2, GANTI KALAU NAMA REPO BEDA) ---
+NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_apps/main/apps.list"
+NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_apps/main/scripts"
+
 # --- WARNA CYBERPUNK (ANSI) ---
 CYAN='\033[0;36m'
 NEON_GREEN='\033[1;32m'
@@ -506,6 +510,74 @@ view_error_log() {
     done
 }
 
+# --- FUNGSI APP STORE (AMBIL DAFTAR APP DARI REPO KE-2) ---
+# Format apps.list: Nama|nama_script.sh|Deskripsi singkat (satu baris per app)
+# Script installer masing-masing ada di scripts/<nama_script.sh> di repo yang sama.
+app_store_menu() {
+    if ! is_ubuntu_installed; then
+        echo -e "\n${NEON_PINK}[X] Error: Ubuntu OS belum diinstal.${NC}"
+        return 1
+    fi
+
+    echo -e "\n${PROCESS} ${CYAN}Mengambil daftar app dari repo...${NC}"
+
+    local manifest="$HOME/.nx_apps_manifest.tmp"
+    rm -f "$manifest"
+
+    if ! curl -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest" 2>/dev/null; then
+        echo -e "${NEON_PINK}[X] Gagal ambil daftar app. Cek koneksi internet atau URL di NX_APPS_MANIFEST_URL.${NC}"
+        rm -f "$manifest"
+        return 1
+    fi
+
+    if [ ! -s "$manifest" ]; then
+        echo -e "${NEON_PINK}[X] Daftar app kosong/tidak valid.${NC}"
+        rm -f "$manifest"
+        return 1
+    fi
+
+    local names=() scripts=() descs=()
+    while IFS='|' read -r a_name a_script a_desc; do
+        [ -z "$a_name" ] && continue
+        names+=("$a_name")
+        scripts+=("$a_script")
+        descs+=("$a_desc")
+    done < "$manifest"
+    rm -f "$manifest"
+
+    if [ "${#names[@]}" -eq 0 ]; then
+        echo -e "${NEON_PINK}[X] Daftar app kosong.${NC}"
+        return 1
+    fi
+
+    while true; do
+        echo -e "\n${PURPLE}------------------------------------------------------${NC}"
+        echo -e "${WHITE}APP STORE${NC}"
+        for i in "${!names[@]}"; do
+            printf " ${PURPLE}[%d]${NC} ${WHITE}%s${NC} ${CYAN}- %s${NC}\n" "$((i+1))" "${names[$i]}" "${descs[$i]}"
+        done
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        read app_choice
+
+        if [ "$app_choice" == "0" ]; then
+            break
+        fi
+
+        local idx=$((app_choice - 1))
+        if [ -z "${names[$idx]:-}" ]; then
+            echo -e "${NEON_PINK}[!] Pilihan tidak valid.${NC}"
+            continue
+        fi
+
+        echo -e "\n${PROCESS} ${CYAN}Menginstal ${names[$idx]}...${NC}"
+        log_section "APP INSTALL: ${names[$idx]}"
+        proot-distro login ubuntu -- bash -c "$(curl -fsSL "$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}" 2>/dev/null)" 2>&1 | tee -a "$NX_LOG"
+        echo -e "${SUCCESS} ${WHITE}Selesai instal ${names[$idx]}.${NC}"
+    done
+}
+
 # --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     animate_logo
@@ -520,7 +592,8 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
     echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
     echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
-    echo -e " ${PURPLE}[9]${NC} ${WHITE}Kembali ke home${NC}"
+    echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
+    echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
     read pilihan
@@ -572,6 +645,11 @@ show_shortcut_menu() {
             show_shortcut_menu
             ;;
         9)
+            app_store_menu
+            sleep 1
+            show_shortcut_menu
+            ;;
+        0)
             echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
             ;;
         *)
