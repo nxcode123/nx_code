@@ -28,24 +28,6 @@ log_section() {
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
 }
 
-# --- FUNGSI CEK PLACEHOLDER URL BELUM DIGANTI ---
-check_placeholder_urls() {
-    local placeholder="nxcode123"
-    local found=0
-    if [[ "$NX_CODE_REPO_RAW_URL" == *"$placeholder"* ]]; then
-        found=1
-    fi
-    if [[ "$NX_APPS_MANIFEST_URL" == *"$placeholder"* ]] || [[ "$NX_APPS_SCRIPTS_BASE_URL" == *"$placeholder"* ]]; then
-        found=1
-    fi
-    if [ "$found" -eq 1 ]; then
-        echo -e "${NEON_PINK}[!] PERINGATAN: URL repo GitHub masih pakai placeholder '${placeholder}'.${NC}"
-        echo -e "${PURPLE}    Fitur Check Update & App Store TIDAK akan berfungsi sampai kamu ganti${NC}"
-        echo -e "${PURPLE}    NX_CODE_REPO_RAW_URL, NX_APPS_MANIFEST_URL, dan NX_APPS_SCRIPTS_BASE_URL${NC}"
-        echo -e "${PURPLE}    di bagian atas $HOME/nx_code.sh dengan username GitHub kamu sendiri.${NC}"
-    fi
-}
-
 # --- FUNGSI CEK STATUS UBUNTU (terpusat) ---
 is_ubuntu_installed() {
     proot-distro login ubuntu -- true >/dev/null 2>&1
@@ -617,7 +599,6 @@ app_store_menu() {
 show_shortcut_menu() {
     while true; do
         animate_logo
-        check_placeholder_urls
         echo -e "${NEON_PINK}======================================================${NC}"
         echo -e "${WHITE}           NX_CODE CORE INTERFACE v1.0.1              ${NC}"
         echo -e "${NEON_PINK}======================================================${NC}"
@@ -747,8 +728,15 @@ if [ "$1" == "--ui-only" ]; then
         echo "$TODAY" > "$LAST_CLEAN_FILE"
     fi
 
-    check_placeholder_urls
-    echo -e "${PURPLE}Untuk masuk ke menu ketik ${CYAN}nx-menu${NC}\n"
+    echo -e "${NEON_PINK}======================================================${NC}"
+    echo ""
+    echo -e " ${PURPLE}[1]${NC} ${WHITE}NX-Menu${NC}"
+    echo ""
+    echo -ne "${CYAN}[?] Pilihan:${NC} "
+    read ui_choice
+    if [ "$ui_choice" == "1" ]; then
+        show_shortcut_menu
+    fi
     exit 0
 fi
 
@@ -888,8 +876,6 @@ echo -e "${NEON_GREEN}[Complete]${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
 echo -e "${NEON_GREEN}          SYSTEM INITIALIZED. NX_CODE ACTIVE.          ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
-
-check_placeholder_urls
 
 echo -e "${WHITE}Menu :${NC}"
 echo -e " ${PURPLE}[1]${NC} ${WHITE}Restart${NC}"
