@@ -142,79 +142,62 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS BAR DINAMIS MINIMALIS ---
-# Argumen ke-3 (opsional): path file log yang sedang ditulis proses background.
-# Mode diambil dari $NX_PROGRESS_MODE (live/simple/log), diset lewat menu
-# [Ganti Mode Progress]. Bar & teks otomatis menyesuaikan lebar layar (kolom
-# terminal terdeteksi via `stty size`) supaya baris tidak pernah melebihi
-# layar dan ter-wrap jadi baris baru — itu penyebab tampilan "numpuk".
+# --- FUNGSI PROGRESS: GAYA STACKED INSTALLER (bukan bar horizontal) ---
+# Cuma SATU baris yang hidup (paling bawah): spinner + aksi yang lagi
+# berjalan (mis. "Unpacking xfce4..."). Begitu proses selesai, baris itu
+# dikunci jadi riwayat permanen "[DONE] <label>" dan turun ke baris baru
+# untuk step berikutnya — jadi hasilnya numpuk KE BAWAH secara rapi seperti
+# log installer biasa, bukan bar yang melebar ke samping dan ter-wrap.
+#   [DONE] Update
+#   [DONE] Upgrade
+#   [DONE] Adding X11
+#   [/] Unpacking libxcb...        <- baris ini saja yang berubah-ubah
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
     local logfile="${3:-}"
     local mode="${NX_PROGRESS_MODE:-live}"
     local ticks=0
-    local elapsed=0
-    local last_line=""
     local label="$message"
+    local spinner="|/-\\"
+    local activity=""
 
-    # Potong label kalau lebih dari 20 karakter, biar lebar selalu terkontrol
-    [ "${#label}" -gt 20 ] && label="${label:0:19}…"
-
-    # Mode "log": tanpa animasi sama sekali. Paling aman untuk terminal
-    # sempit atau yang render-nya bermasalah — cuma cetak sekali di awal & akhir.
+    # Mode "log": tanpa animasi sama sekali, cuma cetak sekali di awal & akhir.
+    # Paling aman untuk terminal yang render-nya masih bermasalah.
     if [ "$mode" == "log" ]; then
-        echo -e "${PROCESS} ${CYAN}${label} (berjalan di background...)${NC}"
+        echo -e "${PURPLE}[•]${NC} ${CYAN}${label}...${NC}"
         wait "$pid" 2>/dev/null
-        printf "${SUCCESS} ${WHITE}%s ${NEON_GREEN}[DONE]${NC}\n" "$label"
+        echo -e "${NEON_GREEN}[DONE]${NC} ${WHITE}${label}${NC}"
         return 0
     fi
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
-        # Deteksi ulang lebar layar tiap tick, jaga-jaga orientasi berubah
         local cols
         cols=$(stty size 2>/dev/null | awk '{print $2}')
         [ -z "$cols" ] && cols=40
 
-        # Hitung ukuran bar secara adaptif: makin sempit layar, bar makin kecil
-        local bar_size=$(( (cols - 30) / 2 ))
-        [ "$bar_size" -gt 15 ] && bar_size=15
-        [ "$bar_size" -lt 5 ] && bar_size=5
+        local sp_char="${spinner:$((ticks % 4)):1}"
 
-        local fill=$((ticks % (bar_size + 1)))
-        local bar=""
-        for ((j=0; j<fill; j++)); do bar="${bar}="; done
-        if [ $fill -lt $bar_size ]; then
-            bar="${bar}>"
-            fill=$((fill + 1))
-        fi
-        for ((j=fill; j<bar_size; j++)); do bar="${bar} "; done
-
-        elapsed=$((ticks / 5))
-
-        # Sisa ruang untuk cuplikan output, cuma dipakai kalau mode=live DAN
-        # layarnya cukup lebar untuk menampungnya tanpa wrap
-        local fixed_w=$(( 4 + 20 + 2 + bar_size + 1 + 6 + 1 ))
-        local budget=$(( cols - fixed_w - 1 ))
-
-        last_line=""
-        if [ "$mode" == "live" ] && [ "$budget" -ge 6 ] && [ -n "$logfile" ] && [ -s "$logfile" ]; then
-            last_line=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]' | cut -c1-"$budget")
+        activity="$label"
+        if [ "$mode" == "live" ] && [ -n "$logfile" ] && [ -s "$logfile" ]; then
+            local candidate
+            candidate=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]')
+            [ -n "$candidate" ] && activity="$candidate"
         fi
 
-        if [ -n "$last_line" ]; then
-            printf "\r\033[K${PROCESS} %-20s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC} ${WHITE}%s${NC}" "$label" "$bar" "$elapsed" "$last_line"
-        else
-            printf "\r\033[K${PROCESS} %-20s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC}" "$label" "$bar" "$elapsed"
-        fi
+        # potong teks aktivitas biar muat dalam satu baris, apapun lebar layarnya
+        local budget=$(( cols - 6 ))
+        [ "$budget" -lt 5 ] && budget=5
+        activity="${activity:0:$budget}"
 
-        sleep 0.2
+        printf "\r\033[K${PURPLE}[${NEON_PINK}%s${PURPLE}]${NC} ${WHITE}%s${NC}" "$sp_char" "$activity"
+
+        sleep 0.12
         ((ticks++))
     done
 
-    elapsed=$((ticks / 5))
-    printf "\r\033[K${SUCCESS} ${WHITE}%-20s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$label" "$elapsed"
+    printf "\r\033[K${NEON_GREEN}[DONE]${NC} ${WHITE}%s${NC}\n" "$label"
     echo -ne "\033[?25h"
 }
 
@@ -634,8 +617,8 @@ select_theme_menu() {
 # --- FUNGSI GANTI MODE PROGRESS BAR ---
 select_progress_menu() {
     local labels=(
-        "Live (bar + cuplikan output, otomatis nyesuain lebar layar)"
-        "Simple (bar animasi saja, tanpa teks output — paling stabil)"
+        "Live (spinner + cuplikan aksi yang lagi berjalan)"
+        "Simple (spinner saja, tanpa teks aksi — paling stabil)"
         "Log (tanpa animasi, cuma cetak status mulai/selesai — paling aman)"
     )
     while true; do
