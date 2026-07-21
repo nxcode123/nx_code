@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.2-premium"
+NX_CODE_VERSION="v1.0.4-premium"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -184,19 +184,20 @@ animate_logo() {
     command clear
     local w=52
     echo -e "\n  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
+    # Menggunakan single quotes agar karakter backslash (\) terbaca murni sebagai ASCII
     local lines=(
-        "   _  _ _  _    ___ ___  ___  ___ "
-        "  | \| | \/ |__| __/ _ \|   \| __|"
-        "  | .  |>  <___| _| (_) | |) | _| "
-        "  |_|\_/_/\_\  |___\___/|___/|___|"
-        "                                  "
+        '    _   _ __  __  ____ ___  ____  _____ '
+        '   | \ | |\ \/ / / ___/ _ \|  _ \| ____|'
+        '   |  \| | \  / | |  | | | | | | |  _|  '
+        '   | |\  | /  \ | |__| |_| | |_| | |___ '
+        '   |_| \_|/_/\_\ \____\___/|____/|_____|'
     )
     for line in "${lines[@]}"; do
         printf "  ${PURPLE}│${NC} ${BOLD}${CYAN}%-48s${NC} ${PURPLE}│${NC}\n" "$line"
     done
-    printf "  ${PURPLE}│${NC} ${DIM}%-48s${NC} ${PURPLE}│${NC}\n" "WORKSPACE TERMINAL"
+    printf "  ${PURPLE}│${NC} ${DIM}%-48s${NC} ${PURPLE}│${NC}\n" "               WORKSPACE TERMINAL"
     echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
-    printf "  ${PURPLE}│${NC} ${WHITE}ST:${NEON_GREEN}%-8s${WHITE} THM:${NEON_PINK}%-10s${WHITE} VER:${CYAN}%-11s${NC} ${PURPLE}│${NC}\n" "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
+    printf "  ${PURPLE}│${NC} ${WHITE}ST: ${NEON_GREEN}%-6s${WHITE} THM: ${NEON_PINK}%-9s${WHITE} VER: ${CYAN}%-11s${NC} ${PURPLE}│${NC}\n" "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
     echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
@@ -208,7 +209,7 @@ choose_resolution() {
     echo -e "  ${WHITE}Pilih Resolusi Layar GUI:${NC}"
     echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
     echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi)${NC}"
-    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Batal & Kembali${NC}"
+    echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
     hr
     echo -ne "  ${CYAN}Pilihan ❯${NC} "
     read res_choice
@@ -226,7 +227,7 @@ choose_resolution() {
             fi
             ;;
         2) RES_W=""; RES_H="" ;;
-        3) GUI_CANCELLED=1 ;;
+        0) GUI_CANCELLED=1 ;;
         *)
             say_warn "Pilihan tidak valid, memakai 720x1440."
             RES_W="720"; RES_H="1440"
@@ -432,7 +433,7 @@ quick_devtools_installer() {
         echo -e "  ${PURPLE}[3]${NC} ${WHITE}Python3 + pip${NC}"
         echo -e "  ${PURPLE}[4]${NC} ${WHITE}Node.js + npm${NC}"
         echo -e "  ${PURPLE}[5]${NC} ${WHITE}C/C++ Build Tools${NC}"
-        echo -e "  ${PURPLE}[6]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read dev_choice
@@ -444,7 +445,7 @@ quick_devtools_installer() {
             3) pkgs="python3 python3-pip" ;;
             4) pkgs="nodejs npm" ;;
             5) pkgs="build-essential" ;;
-            6) break ;;
+            0) break ;;
             *) say_warn "Pilihan tidak valid."; continue ;;
         esac
 
@@ -500,7 +501,7 @@ view_error_log() {
         echo -e "  ${WHITE}SYSTEM LOGS${NC}"
         echo -e "  ${PURPLE}[1]${NC} ${WHITE}Lihat log terbaru${NC} ${DIM}(50 baris)${NC}"
         echo -e "  ${PURPLE}[2]${NC} ${WHITE}Bersihkan log${NC}"
-        echo -e "  ${PURPLE}[3]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read log_choice
@@ -519,7 +520,7 @@ view_error_log() {
                 rm -f "$NX_LOG"
                 say_ok "Log telah dihapus."
                 ;;
-            3) break ;;
+            0) break ;;
             *) say_warn "Tidak valid." ;;
         esac
     done
@@ -846,11 +847,11 @@ hr
 
 echo -e "  ${WHITE}Terminal memerlukan proses Restart:${NC}"
 echo -e "  ${PURPLE}[1]${NC} ${WHITE}Restart Otomatis (Rekomendasi)${NC}"
-echo -e "  ${PURPLE}[2]${NC} ${WHITE}Keluar${NC}"
+echo -e "  ${PURPLE}[0]${NC} ${WHITE}Keluar${NC}"
 echo -ne "  ${CYAN}Pilihan ❯${NC} "
 read final_choice
 
 case "$final_choice" in
     1) exec bash ;;
-    *) exit 0 ;;
+    0|*) exit 0 ;;
 esac
