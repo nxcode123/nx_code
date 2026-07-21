@@ -12,6 +12,25 @@ NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_ap
 NX_THEME_FILE="$HOME/.nx_code_theme"
 NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 
+# --- KONFIGURASI MODE PROGRESS BAR ---
+# live   = bar animasi + cuplikan output terakhir (kalau layar cukup lebar)
+# simple = bar animasi saja, tanpa teks output (paling aman di layar sempit)
+# log    = tanpa animasi sama sekali, cuma print sekali saat mulai & selesai
+NX_PROGRESS_FILE="$HOME/.nx_code_progress_mode"
+NX_AVAILABLE_PROGRESS_MODES=(live simple log)
+
+load_progress_mode() {
+    NX_PROGRESS_MODE="live"
+    if [ -f "$NX_PROGRESS_FILE" ]; then
+        local saved
+        saved=$(cat "$NX_PROGRESS_FILE" 2>/dev/null)
+        for m in "${NX_AVAILABLE_PROGRESS_MODES[@]}"; do
+            [ "$saved" == "$m" ] && NX_PROGRESS_MODE="$saved"
+        done
+    fi
+}
+load_progress_mode
+
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
@@ -125,23 +144,46 @@ setup_nonroot_user() {
 
 # --- FUNGSI PROGRESS BAR DINAMIS MINIMALIS ---
 # Argumen ke-3 (opsional): path file log yang sedang ditulis proses background.
-# Kalau diisi, baris terakhir dari log itu ditampilkan di sebelah bar
-# (mis. "Unpacking xfce4...", "Setting up nodejs..."), supaya user tahu
-# prosesnya benar-benar jalan dan bukan macet diam-diam.
+# Mode diambil dari $NX_PROGRESS_MODE (live/simple/log), diset lewat menu
+# [Ganti Mode Progress]. Bar & teks otomatis menyesuaikan lebar layar (kolom
+# terminal terdeteksi via `stty size`) supaya baris tidak pernah melebihi
+# layar dan ter-wrap jadi baris baru — itu penyebab tampilan "numpuk".
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
     local logfile="${3:-}"
+    local mode="${NX_PROGRESS_MODE:-live}"
     local ticks=0
     local elapsed=0
     local last_line=""
+    local label="$message"
+
+    # Potong label kalau lebih dari 20 karakter, biar lebar selalu terkontrol
+    [ "${#label}" -gt 20 ] && label="${label:0:19}…"
+
+    # Mode "log": tanpa animasi sama sekali. Paling aman untuk terminal
+    # sempit atau yang render-nya bermasalah — cuma cetak sekali di awal & akhir.
+    if [ "$mode" == "log" ]; then
+        echo -e "${PROCESS} ${CYAN}${label} (berjalan di background...)${NC}"
+        wait "$pid" 2>/dev/null
+        printf "${SUCCESS} ${WHITE}%s ${NEON_GREEN}[DONE]${NC}\n" "$label"
+        return 0
+    fi
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
-        local bar_size=15
+        # Deteksi ulang lebar layar tiap tick, jaga-jaga orientasi berubah
+        local cols
+        cols=$(stty size 2>/dev/null | awk '{print $2}')
+        [ -z "$cols" ] && cols=40
+
+        # Hitung ukuran bar secara adaptif: makin sempit layar, bar makin kecil
+        local bar_size=$(( (cols - 30) / 2 ))
+        [ "$bar_size" -gt 15 ] && bar_size=15
+        [ "$bar_size" -lt 5 ] && bar_size=5
+
         local fill=$((ticks % (bar_size + 1)))
         local bar=""
-
         for ((j=0; j<fill; j++)); do bar="${bar}="; done
         if [ $fill -lt $bar_size ]; then
             bar="${bar}>"
@@ -151,14 +193,20 @@ show_futuristic_progress() {
 
         elapsed=$((ticks / 5))
 
-        if [ -n "$logfile" ] && [ -s "$logfile" ]; then
-            last_line=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]' | cut -c1-34)
+        # Sisa ruang untuk cuplikan output, cuma dipakai kalau mode=live DAN
+        # layarnya cukup lebar untuk menampungnya tanpa wrap
+        local fixed_w=$(( 4 + 20 + 2 + bar_size + 1 + 6 + 1 ))
+        local budget=$(( cols - fixed_w - 1 ))
+
+        last_line=""
+        if [ "$mode" == "live" ] && [ "$budget" -ge 6 ] && [ -n "$logfile" ] && [ -s "$logfile" ]; then
+            last_line=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]' | cut -c1-"$budget")
         fi
 
         if [ -n "$last_line" ]; then
-            printf "\r\033[K${PROCESS} %-22s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC} ${WHITE}%s${NC}" "$message" "$bar" "$elapsed" "$last_line"
+            printf "\r\033[K${PROCESS} %-20s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC} ${WHITE}%s${NC}" "$label" "$bar" "$elapsed" "$last_line"
         else
-            printf "\r\033[K${PROCESS} %-22s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC}" "$message" "$bar" "$elapsed"
+            printf "\r\033[K${PROCESS} %-20s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC}" "$label" "$bar" "$elapsed"
         fi
 
         sleep 0.2
@@ -166,7 +214,7 @@ show_futuristic_progress() {
     done
 
     elapsed=$((ticks / 5))
-    printf "\r\033[K${SUCCESS} ${WHITE}%-22s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$message" "$elapsed"
+    printf "\r\033[K${SUCCESS} ${WHITE}%-20s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$label" "$elapsed"
     echo -ne "\033[?25h"
 }
 
@@ -583,6 +631,49 @@ select_theme_menu() {
     done
 }
 
+# --- FUNGSI GANTI MODE PROGRESS BAR ---
+select_progress_menu() {
+    local labels=(
+        "Live (bar + cuplikan output, otomatis nyesuain lebar layar)"
+        "Simple (bar animasi saja, tanpa teks output — paling stabil)"
+        "Log (tanpa animasi, cuma cetak status mulai/selesai — paling aman)"
+    )
+    while true; do
+        hr
+        echo -e "${WHITE}MODE PROGRESS BAR${NC} ${CYAN}(aktif: ${NX_PROGRESS_MODE})${NC}"
+        hr
+        local i=1
+        for m in "${NX_AVAILABLE_PROGRESS_MODES[@]}"; do
+            if [ "$m" == "$NX_PROGRESS_MODE" ]; then
+                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${labels[$((i-1))]}${NC} ${NEON_GREEN}[✔ aktif]${NC}"
+            else
+                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${labels[$((i-1))]}${NC}"
+            fi
+            i=$((i+1))
+        done
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        hr
+        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        read prog_choice
+
+        if [ "$prog_choice" == "0" ]; then
+            break
+        fi
+
+        local idx=$((prog_choice - 1))
+        local chosen="${NX_AVAILABLE_PROGRESS_MODES[$idx]:-}"
+
+        if [ -z "$chosen" ]; then
+            say_warn "Pilihan tidak valid."
+            continue
+        fi
+
+        echo "$chosen" > "$NX_PROGRESS_FILE"
+        load_progress_mode
+        say_ok "Mode progress diganti ke: ${NEON_GREEN}${chosen}${NC}"
+    done
+}
+
 # --- FUNGSI APP STORE ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
@@ -744,6 +835,7 @@ show_shortcut_menu() {
         echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
         echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
         echo -e " ${PURPLE}[10]${NC} ${WHITE}Ganti Tema Warna${NC} ${CYAN}(aktif: ${NX_CURRENT_THEME})${NC}"
+        echo -e " ${PURPLE}[11]${NC} ${WHITE}Ganti Mode Progress${NC} ${CYAN}(aktif: ${NX_PROGRESS_MODE})${NC}"
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
         echo -e "${NEON_PINK}======================================================${NC}"
         echo -ne "${CYAN}[?] Select Option:${NC} "
@@ -773,6 +865,7 @@ show_shortcut_menu() {
             8) view_error_log; sleep 1 ;;
             9) app_store_menu; sleep 1 ;;
             10) select_theme_menu; sleep 1 ;;
+            11) select_progress_menu; sleep 1 ;;
             0)
                 echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
                 break
