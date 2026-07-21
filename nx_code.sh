@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.4-premium"
+NX_CODE_VERSION="v1.0.7-premium"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -121,7 +121,6 @@ show_futuristic_progress() {
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
-        # Menggunakan bash bawaan alih-alih awk untuk menghindari error libncurses
         local cols=${COLUMNS:-50}
         [ "$cols" -lt 40 ] && cols=40
 
@@ -184,7 +183,6 @@ animate_logo() {
     command clear
     local w=52
     echo -e "\n  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
-    # Menggunakan single quotes agar karakter backslash (\) terbaca murni sebagai ASCII
     local lines=(
         '    _   _ __  __  ____ ___  ____  _____ '
         '   | \ | |\ \/ / / ___/ _ \|  _ \| ____|'
@@ -467,7 +465,7 @@ quick_devtools_installer() {
     done
 }
 
-# --- FUNGSI CHECK UPDATE ---
+# --- FUNGSI CHECK UPDATE MANUAL ---
 check_for_update() {
     say_proc "Sinkronisasi ke GitHub..."
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
@@ -485,13 +483,20 @@ check_for_update() {
         return 0
     fi
 
-    say_ok "Pembaruan tersedia! Menginstal patch..."
-    mv "$tmp_file" "$HOME/nx_code.sh"
-    chmod +x "$HOME/nx_code.sh"
-    
-    say_proc "Restarting terminal UI..."
-    sleep 1
-    exec bash "$HOME/nx_code.sh"
+    say_ok "Pembaruan tersedia!"
+    echo -ne "  ${CYAN}Unduh dan terapkan pembaruan sekarang? (y/n) ❯${NC} "
+    read update_choice
+
+    if [ "$update_choice" == "y" ] || [ "$update_choice" == "Y" ]; then
+        mv "$tmp_file" "$HOME/nx_code.sh"
+        chmod +x "$HOME/nx_code.sh"
+        say_proc "Restarting terminal UI..."
+        sleep 1
+        exec bash "$HOME/nx_code.sh"
+    else
+        say_hint "Pembaruan ditunda."
+        rm -f "$tmp_file"
+    fi
 }
 
 # --- FUNGSI LIHAT LOG ERROR ---
@@ -713,6 +718,7 @@ if [ "$1" == "--ui-only" ]; then
     ub_status="${DIM}Offline${NC}"
     st_status="${DIM}Unlinked${NC}"
     clean_status="${DIM}Skipped${NC}"
+    update_status="${DIM}Checking...${NC}"
 
     (sleep 0.4) &
     show_futuristic_progress "Scanning Ubuntu Core" $!
@@ -737,11 +743,43 @@ if [ "$1" == "--ui-only" ]; then
         clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
+    # Pengecekan status pembaruan (mode informasi / non-auto apply)
+    (
+        local tmp_chk="$TMPDIR/.nx_up_check.tmp"
+        if curl --silent --max-time 5 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_chk" 2>/dev/null; then
+            if diff -q "$tmp_chk" "$HOME/nx_code.sh" >/dev/null 2>&1; then
+                echo "up-to-date" > "$TMPDIR/.nx_up_status"
+            else
+                echo "update-available" > "$TMPDIR/.nx_up_status"
+            fi
+            rm -f "$tmp_chk"
+        else
+            echo "offline" > "$TMPDIR/.nx_up_status"
+        fi
+    ) &
+    show_futuristic_progress "Check Update" $!
+
+    if [ -f "$TMPDIR/.nx_up_status" ]; then
+        local st_res
+        st_res=$(cat "$TMPDIR/.nx_up_status")
+        if [ "$st_res" == "up-to-date" ]; then
+            update_status="${NEON_GREEN}Up-to-Date${NC}"
+        elif [ "$st_res" == "update-available" ]; then
+            update_status="${NEON_PINK}Update Available${NC}"
+        else
+            update_status="${DIM}Offline${NC}"
+        fi
+        rm -f "$TMPDIR/.nx_up_status"
+    else
+        update_status="${DIM}Skipped${NC}"
+    fi
+
     echo ""
     echo -e "  ${PURPLE}╭──────────────────────────────────────────────────╮${NC}"
     printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "System Core"    "$ub_status"
     printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "Local Storage"  "$st_status"
     printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "Daily Optimizer" "$clean_status"
+    printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "Check Update"   "$update_status"
     echo -e "  ${PURPLE}╰──────────────────────────────────────────────────╯${NC}"
     echo -e "\n  ${DIM}Ketik${NC} ${CYAN}nx-menu${NC} ${DIM}untuk membuka interface utama.${NC}\n"
     exit 0
@@ -771,7 +809,6 @@ if ! is_ubuntu_installed; then
     say_proc "Generating Virtual Environment..."
     proot-distro remove ubuntu > /dev/null 2>&1
     
-    # SILENT INSTALL: Output dari instalasi proot disembunyikan agar layar tetap bersih
     : > "$NX_STEP_LOG"
     (proot-distro install ubuntu > "$NX_STEP_LOG" 2>&1) &
     show_futuristic_progress "Downloading Ubuntu Core (Bisa memakan waktu)" $! "$NX_STEP_LOG"
@@ -792,14 +829,31 @@ fi
 
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
-    local src=""
-    if [ -n "$BASH_SOURCE" ] && [ -f "${BASH_SOURCE[0]}" ]; then src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
-    elif [ -f "$0" ]; then src=$(realpath "$0" 2>/dev/null); fi
-    if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
-        cp "$src" "$dest"; chmod +x "$dest"; return 0
+    
+    if [ ! -f "$0" ] || [ "$0" = "bash" ] || [ "$0" = "-bash" ]; then
+        curl --silent --max-time 15 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$dest" 2>/dev/null
+        if [ -s "$dest" ]; then
+            chmod +x "$dest"
+            return 0
+        fi
+        return 1
     fi
-    if [ ! -f "$dest" ]; then return 1; fi
-    return 0
+
+    local src=""
+    if [ -n "${BASH_SOURCE[0]}" ] && [ -f "${BASH_SOURCE[0]}" ]; then 
+        src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
+    elif [ -f "$0" ]; then 
+        src=$(realpath "$0" 2>/dev/null); 
+    fi
+
+    if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
+        cp "$src" "$dest"
+        chmod +x "$dest"
+        return 0
+    fi
+    
+    [ -f "$dest" ] && return 0
+    return 1
 }
 
 if copy_self_to_home; then
