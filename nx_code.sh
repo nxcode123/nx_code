@@ -2,6 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
+NX_CODE_VERSION="v1.0.1"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -90,6 +91,11 @@ say_err()   { echo -e "\n${NEON_PINK}[X] $1${NC}"; }
 say_warn()  { echo -e "${NEON_PINK}[!] $1${NC}"; }
 say_hint()  { echo -e "${PURPLE}$1${NC}"; }
 hr()        { echo -e "${PURPLE}------------------------------------------------------${NC}"; }
+
+# --- HELPER: BARIS MENU BER-BOX (dipakai di show_shortcut_menu) ---
+print_menu_item() {
+    printf "${NEON_PINK}║${NC} ${PURPLE}[%-2s]${NC} ${WHITE}%-46s${NC}${NEON_PINK}║${NC}\n" "$1" "$2"
+}
 
 log_section() {
     echo "" >> "$NX_LOG"
@@ -221,10 +227,11 @@ cyber_boot_sequence() {
     sleep 1
 }
 
-# --- ANIMASI BOOTING LOGO ---
+# --- ANIMASI BOOTING LOGO (UPDATED: border ganda + versi) ---
 animate_logo() {
     command clear
-    echo -e "${NEON_PINK}======================================================${NC}"
+    local w=56
+    echo -e "${NEON_PINK}╔$(printf '═%.0s' $(seq 1 $((w-2))))╗${NC}"
     local lines=(
         "  _   _ __  __        ____ ___  ____  _____ "
         " | \ | |\ \/ /       / ___/ _ \|  _ \| ____|"
@@ -237,9 +244,10 @@ animate_logo() {
         sleep 0.04
         printf "${CYAN}%s${NC}\n" "$line"
     done
-    hr
-    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${NX_CURRENT_THEME^^}${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
+    echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
+    printf " ${WHITE}STATUS:${NEON_GREEN} %-9s${WHITE}THEME:${NEON_PINK} %-10s${WHITE}VER:${CYAN} %s${NC}\n" \
+        "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
+    echo -e "${NEON_PINK}╚$(printf '═%.0s' $(seq 1 $((w-2))))╝${NC}"
     echo ""
 }
 
@@ -842,26 +850,33 @@ app_store_menu() {
     done
 }
 
-# --- FUNGSI PANEL MENU SHORTCUT ---
+# --- FUNGSI PANEL MENU SHORTCUT (UPDATED: box seragam) ---
 show_shortcut_menu() {
     while true; do
         animate_logo
-        echo -e "${NEON_PINK}======================================================${NC}"
-        echo -e "${WHITE}           NX_CODE CORE INTERFACE v1.0.1              ${NC}"
-        echo -e "${NEON_PINK}======================================================${NC}"
-        echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
-        echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
-        echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
-        echo -e " ${PURPLE}[4]${NC} ${WHITE}Cek sesi xfce yang aktif${NC}"
-        echo -e " ${PURPLE}[5]${NC} ${WHITE}Quick Dev-Tools Installer${NC}"
-        echo -e " ${PURPLE}[6]${NC} ${WHITE}System Monitor (HTop)${NC}"
-        echo -e " ${PURPLE}[7]${NC} ${WHITE}Check update${NC}"
-        echo -e " ${PURPLE}[8]${NC} ${WHITE}Log error${NC}"
-        echo -e " ${PURPLE}[9]${NC} ${WHITE}App${NC}"
-        echo -e " ${PURPLE}[10]${NC} ${WHITE}Ganti Tema Warna${NC} ${CYAN}(aktif: ${NX_CURRENT_THEME})${NC}"
-        echo -e " ${PURPLE}[11]${NC} ${WHITE}Ganti Mode Progress${NC} ${CYAN}(aktif: ${NX_PROGRESS_MODE})${NC}"
-        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke home${NC}"
-        echo -e "${NEON_PINK}======================================================${NC}"
+        local w=56
+        echo -e "${NEON_PINK}╔$(printf '═%.0s' $(seq 1 $((w-2))))╗${NC}"
+        printf "${NEON_PINK}║${NC}%*s${NEON_PINK}║${NC}\n" $((w-2)) ""
+        local title="NX_CODE CORE INTERFACE ${NX_CODE_VERSION}"
+        local pad=$(( (w - 2 - ${#title}) / 2 ))
+        printf "${NEON_PINK}║${NC}%*s${WHITE}%s${NC}%*s${NEON_PINK}║${NC}\n" "$pad" "" "$title" $((w-2-pad-${#title})) ""
+        printf "${NEON_PINK}║${NC}%*s${NEON_PINK}║${NC}\n" $((w-2)) ""
+        echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
+
+        print_menu_item "1"  "Ubuntu CLI"
+        print_menu_item "2"  "Ubuntu GUI (XFCE4 via Termux:X11)"
+        print_menu_item "3"  "Kill Ubuntu GUI (XFCE4 via Termux:X11)"
+        print_menu_item "4"  "Cek sesi xfce yang aktif"
+        print_menu_item "5"  "Quick Dev-Tools Installer"
+        print_menu_item "6"  "System Monitor (HTop)"
+        print_menu_item "7"  "Check update"
+        print_menu_item "8"  "Log error"
+        print_menu_item "9"  "App"
+        print_menu_item "10" "Ganti Tema Warna (aktif: ${NX_CURRENT_THEME})"
+        print_menu_item "11" "Ganti Mode Progress (aktif: ${NX_PROGRESS_MODE})"
+        echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
+        print_menu_item "0"  "Kembali ke home"
+        echo -e "${NEON_PINK}╚$(printf '═%.0s' $(seq 1 $((w-2))))╝${NC}"
         echo -ne "${CYAN}[?] Select Option:${NC} "
         read pilihan
 
@@ -918,28 +933,21 @@ fi
 if [ "$1" == "--ui-only" ]; then
     animate_logo
 
-    echo -ne "${CYAN}Syncing database"
-    for i in {1..4}; do echo -ne "."; sleep 0.3; done
-    echo -e " ${NEON_GREEN}Done!${NC}"
+    ub_status="${NEON_PINK}Not Installed${NC}"
+    st_status="${NEON_PINK}Not Setup${NC}"
+    clean_status="${CYAN}Skipped (already today)${NC}"
 
-    echo -ne "${CYAN}Ubuntu check"
-    for i in {1..5}; do echo -ne "."; sleep 0.3; done
+    # --- Cek Ubuntu (dengan animasi) ---
+    (sleep 0.6) &
+    show_futuristic_progress "Checking Ubuntu Core" $!
+    is_ubuntu_installed && ub_status="${NEON_GREEN}Ready${NC}"
 
-    if is_ubuntu_installed; then
-        echo -e " ${NEON_GREEN}[✔] Ubuntu Ready${NC}"
-    else
-        echo -e " ${NEON_PINK}[X] Ubuntu Not Installed${NC}"
-    fi
+    # --- Cek Storage (dengan animasi) ---
+    (sleep 0.4) &
+    show_futuristic_progress "Checking Storage Access" $!
+    is_storage_setup && st_status="${NEON_GREEN}Ready${NC}"
 
-    echo -ne "${CYAN}Storage check"
-    for i in {1..3}; do echo -ne "."; sleep 0.2; done
-
-    if is_storage_setup; then
-        echo -e " ${NEON_GREEN}[✔] Storage Ready${NC}"
-    else
-        echo -e " ${NEON_PINK}[X] Storage Not Setup${NC} ${PURPLE}(jalankan manual: termux-setup-storage)${NC}"
-    fi
-
+    # --- Auto-Cleaner (dengan animasi + progress asli kalau ada) ---
     LAST_CLEAN_FILE="$HOME/.nx_code_last_clean"
     TODAY=$(date +%Y%m%d)
     LAST_CLEAN=""
@@ -953,17 +961,20 @@ if [ "$1" == "--ui-only" ]; then
             fi
         ) > /dev/null 2>&1 &
         clean_pid=$!
-
-        echo -ne "${CYAN}Auto-Cleaner Storage Termux"
-        for i in {1..7}; do echo -ne "."; sleep 0.2; done
-        wait $clean_pid 2>/dev/null
-        echo -e " ${NEON_GREEN}[✔] Clean${NC}"
+        show_futuristic_progress "Running Auto-Cleaner" "$clean_pid"
         echo "$TODAY" > "$LAST_CLEAN_FILE"
+        clean_status="${NEON_GREEN}Done${NC}"
     fi
 
-    echo -e "${NEON_PINK}======================================================${NC}"
     echo ""
-    echo -e " ${NEON_PINK}[ ! ]${NC} ${WHITE}ketik ${CYAN}nx-menu${WHITE} untuk akses menu${NC}"
+    echo -e "${PURPLE}┌──────────────────────────────────────────────────┐${NC}"
+    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Version"       "${CYAN}${NX_CODE_VERSION}${NC}"
+    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Ubuntu Core"    "$ub_status"
+    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Storage Access" "$st_status"
+    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Auto-Cleaner"   "$clean_status"
+    echo -e "${PURPLE}└──────────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo -e " ${NEON_PINK}[!]${NC} ${WHITE}Ketik ${CYAN}nx-menu${WHITE} untuk akses menu${NC}"
     echo ""
     exit 0
 fi
