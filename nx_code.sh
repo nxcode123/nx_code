@@ -12,25 +12,6 @@ NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_ap
 NX_THEME_FILE="$HOME/.nx_code_theme"
 NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 
-# --- KONFIGURASI MODE PROGRESS BAR ---
-# live   = bar animasi + cuplikan output terakhir (kalau layar cukup lebar)
-# simple = bar animasi saja, tanpa teks output (paling aman di layar sempit)
-# log    = tanpa animasi sama sekali, cuma print sekali saat mulai & selesai
-NX_PROGRESS_FILE="$HOME/.nx_code_progress_mode"
-NX_AVAILABLE_PROGRESS_MODES=(live simple log)
-
-load_progress_mode() {
-    NX_PROGRESS_MODE="live"
-    if [ -f "$NX_PROGRESS_FILE" ]; then
-        local saved
-        saved=$(cat "$NX_PROGRESS_FILE" 2>/dev/null)
-        for m in "${NX_AVAILABLE_PROGRESS_MODES[@]}"; do
-            [ "$saved" == "$m" ] && NX_PROGRESS_MODE="$saved"
-        done
-    fi
-}
-load_progress_mode
-
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
@@ -105,8 +86,6 @@ log_section() {
 # ==============================================================================
 # HELPER: EKSEKUSI DI DALAM UBUNTU (mengganti "proot-distro login ubuntu -- bash -c" berulang)
 # ==============================================================================
-# Pakai: ux "perintah shell di dalam ubuntu"
-# Pakai: ux_as "$NX_USER" "perintah shell"   -> jalankan sebagai user tertentu
 ux() {
     proot-distro login ubuntu -- bash -c "$1"
 }
@@ -127,7 +106,6 @@ is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
 
 # --- VALIDASI INPUT (whitelist nama file: huruf, angka, titik, strip, underscore) ---
-# Mencegah path traversal / injection dari data manifest app store yang diambil dari internet.
 is_safe_filename() {
     [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
 }
@@ -149,18 +127,7 @@ show_futuristic_progress() {
     local pid=$2
     local logfile="${3:-}"
     local total="${4:-0}"
-    local mode="${NX_PROGRESS_MODE:-live}"
     local label="$message"
-    local spinner="|/-\\"
-    local ticks=0
-
-    # Mode "log": tanpa animasi sama sekali, cuma cetak sekali di awal & akhir.
-    if [ "$mode" == "log" ]; then
-        echo -e "${WHITE}[*]${NC} ${label}..."
-        wait "$pid" 2>/dev/null
-        echo -e "${WHITE}[*]${NC} ${label} ${NEON_GREEN}selesai.${NC}"
-        return 0
-    fi
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
@@ -179,8 +146,7 @@ show_futuristic_progress() {
             fi
         fi
 
-        if [ "$mode" == "live" ] && [ "$total" -gt 0 ]; then
-            # BAR PERSENTASE CYBERPUNK
+        if [ "$total" -gt 0 ]; then
             local percent=$(( done_count * 100 / total ))
             [ "$percent" -gt 100 ] && percent=100
             local bar_w=20
@@ -190,9 +156,6 @@ show_futuristic_progress() {
             for ((j=0; j<filled; j++)); do bar="${bar}█"; done
             for ((j=filled; j<bar_w; j++)); do bar="${bar}░"; done
             printf "\r\033[K${NEON_PINK}[SYS]${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} | %s" "$bar" "$percent" "${activity:0:15}"
-        elif [ "$mode" == "simple" ]; then
-            local sp_char="${spinner:$((ticks % 4)):1}"
-            printf "\r\033[K${WHITE}[*]${NC} %s %s" "$label" "$sp_char"
         else
             local budget=$(( cols - 6 ))
             [ "$budget" -lt 5 ] && budget=5
@@ -201,7 +164,6 @@ show_futuristic_progress() {
         fi
 
         sleep 0.12
-        ((ticks++))
     done
 
     printf "\r\033[K${WHITE}[*]${NC} %s ${NEON_GREEN}selesai.${NC}\n" "$label"
@@ -227,7 +189,7 @@ cyber_boot_sequence() {
     sleep 1
 }
 
-# --- ANIMASI BOOTING LOGO (UPDATED: border ganda + versi) ---
+# --- ANIMASI BOOTING LOGO ---
 animate_logo() {
     command clear
     local w=56
@@ -339,7 +301,6 @@ launch_ubuntu_gui() {
         show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
 
-        # Hitung total paket sungguhan (dry-run) biar bar persentase valid, bukan tebakan
         local xfce_total
         xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$xfce_total" ] && xfce_total=0
@@ -429,7 +390,6 @@ kill_ubuntu_gui() {
         found=1
     fi
 
-    # Targetkan proses xfce hanya untuk nxuser agar tidak menabrak proses lain
     if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then
         found=1
     fi
@@ -663,49 +623,6 @@ select_theme_menu() {
     done
 }
 
-# --- FUNGSI GANTI MODE PROGRESS BAR ---
-select_progress_menu() {
-    local labels=(
-        "Live (gaya proot-distro: [*] status + bar % asli kalau tersedia)"
-        "Simple (spinner saja, tanpa teks aksi — paling stabil)"
-        "Log (tanpa animasi, cuma cetak status mulai/selesai — paling aman)"
-    )
-    while true; do
-        hr
-        echo -e "${WHITE}MODE PROGRESS BAR${NC} ${CYAN}(aktif: ${NX_PROGRESS_MODE})${NC}"
-        hr
-        local i=1
-        for m in "${NX_AVAILABLE_PROGRESS_MODES[@]}"; do
-            if [ "$m" == "$NX_PROGRESS_MODE" ]; then
-                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${labels[$((i-1))]}${NC} ${NEON_GREEN}[✔ aktif]${NC}"
-            else
-                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${labels[$((i-1))]}${NC}"
-            fi
-            i=$((i+1))
-        done
-        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
-        hr
-        echo -ne "${CYAN}[?] Pilihan:${NC} "
-        read prog_choice
-
-        if [ "$prog_choice" == "0" ]; then
-            break
-        fi
-
-        local idx=$((prog_choice - 1))
-        local chosen="${NX_AVAILABLE_PROGRESS_MODES[$idx]:-}"
-
-        if [ -z "$chosen" ]; then
-            say_warn "Pilihan tidak valid."
-            continue
-        fi
-
-        echo "$chosen" > "$NX_PROGRESS_FILE"
-        load_progress_mode
-        say_ok "Mode progress diganti ke: ${NEON_GREEN}${chosen}${NC}"
-    done
-}
-
 # --- FUNGSI APP STORE ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
@@ -730,16 +647,12 @@ app_store_menu() {
         return 1
     fi
 
-    # Bersihkan CRLF (Windows line ending) dari manifest sebelum diparse,
-    # supaya field terakhir (nama file .desktop) tidak kebawa '\r' tersembunyi.
     sed -i 's/\r$//' "$manifest" 2>/dev/null
 
     local names=() scripts=() descs=() desktops=()
     while IFS='|' read -r a_name a_script a_desc a_desktop; do
         [ -z "$a_name" ] && continue
 
-        # Validasi: nama file script & desktop wajib aman (whitelist karakter),
-        # menutup celah path traversal / command injection dari manifest eksternal.
         if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then
             say_warn "Melewati entri '$a_name': nama script tidak valid."
             continue
@@ -807,7 +720,6 @@ app_store_menu() {
         say_proc "Menginstal ${names[$idx]}..."
         log_section "APP INSTALL: ${names[$idx]}"
 
-        # Eksekusi yang diunduh ke file temporary, bukan blind curl | bash
         local target_url="$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}"
         local tmp_script="$HOME/.tmp_install_$(basename "${scripts[$idx]}")"
 
@@ -850,7 +762,7 @@ app_store_menu() {
     done
 }
 
-# --- FUNGSI PANEL MENU SHORTCUT (UPDATED: box seragam) ---
+# --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     while true; do
         animate_logo
@@ -873,7 +785,6 @@ show_shortcut_menu() {
         print_menu_item "8"  "Log error"
         print_menu_item "9"  "App"
         print_menu_item "10" "Ganti Tema Warna (aktif: ${NX_CURRENT_THEME})"
-        print_menu_item "11" "Ganti Mode Progress (aktif: ${NX_PROGRESS_MODE})"
         echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
         print_menu_item "0"  "Kembali ke home"
         echo -e "${NEON_PINK}╚$(printf '═%.0s' $(seq 1 $((w-2))))╝${NC}"
@@ -904,7 +815,6 @@ show_shortcut_menu() {
             8) view_error_log; sleep 1 ;;
             9) app_store_menu; sleep 1 ;;
             10) select_theme_menu; sleep 1 ;;
-            11) select_progress_menu; sleep 1 ;;
             0)
                 echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
                 break
@@ -937,17 +847,14 @@ if [ "$1" == "--ui-only" ]; then
     st_status="${NEON_PINK}Not Setup${NC}"
     clean_status="${CYAN}Skipped (already today)${NC}"
 
-    # --- Cek Ubuntu (dengan animasi) ---
     (sleep 0.6) &
     show_futuristic_progress "Checking Ubuntu Core" $!
     is_ubuntu_installed && ub_status="${NEON_GREEN}Ready${NC}"
 
-    # --- Cek Storage (dengan animasi) ---
     (sleep 0.4) &
     show_futuristic_progress "Checking Storage Access" $!
     is_storage_setup && st_status="${NEON_GREEN}Ready${NC}"
 
-    # --- Auto-Cleaner (dengan animasi + progress asli kalau ada) ---
     LAST_CLEAN_FILE="$HOME/.nx_code_last_clean"
     TODAY=$(date +%Y%m%d)
     LAST_CLEAN=""
@@ -987,7 +894,6 @@ animate_logo
 
 echo -e "${WHITE}>> DEPLOYING CORE DEPENDENCIES...${NC}\n"
 
-# OPTIMASI: Menggabungkan update dan instalasi paket Termux dasar dalam satu proses
 : > "$NX_STEP_LOG"
 (
     pkg update -y -o Dpkg::Options::="--force-confold" && \
@@ -996,7 +902,6 @@ echo -e "${WHITE}>> DEPLOYING CORE DEPENDENCIES...${NC}\n"
 ) > "$NX_STEP_LOG" 2>&1 &
 show_futuristic_progress "Syncing Global Repos & Injecting Base Nodes" $! "$NX_STEP_LOG"
 
-# Instalasi paket server X11
 : > "$NX_STEP_LOG"
 (pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
 show_futuristic_progress "Compiling X11 Display Subsystems" $! "$NX_STEP_LOG"
