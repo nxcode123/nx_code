@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.1"
+NX_CODE_VERSION="v1.0.2-premium"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -15,18 +15,18 @@ NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
-# --- LOG ERROR (biar output yang kecepetan lewat bisa dibaca ulang nanti) ---
+# --- LOG ERROR ---
 NX_LOG="$HOME/.nx_code_error.log"
 
-# --- MODE NON-INTERAKTIF UNTUK APT/DEBCONF ---
+# --- MODE NON-INTERAKTIF ---
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-# File log sementara untuk menampilkan potongan output real-time di progress bar
+# File log sementara untuk progress bar
 NX_STEP_LOG="${TMPDIR:-/tmp}/.nx_step.log"
 
 # ==============================================================================
-# HELPER: TEMA WARNA
+# HELPER: TEMA WARNA (CLASSY EDITION)
 # ==============================================================================
 load_theme() {
     local theme="cyberpunk"
@@ -34,6 +34,9 @@ load_theme() {
         theme=$(cat "$NX_THEME_FILE" 2>/dev/null)
     fi
 
+    DIM='\033[2m'
+    BOLD='\033[1m'
+    
     case "$theme" in
         matrix)
             CYAN='\033[0;32m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[1;32m'
@@ -58,24 +61,24 @@ load_theme() {
 
     NX_CURRENT_THEME="$theme"
     NC='\033[0m'
-    SUCCESS="${NEON_GREEN}[✔]${NC}"
-    PROCESS="${CYAN}[➔]${NC}"
+    SUCCESS="${NEON_GREEN}●${NC}"
+    PROCESS="${CYAN}❯${NC}"
 }
 load_theme
 
 # ==============================================================================
-# HELPER: OUTPUT MESSAGE (mengganti pola echo -e berulang di seluruh script)
+# HELPER: OUTPUT MESSAGE (Gaya Minimalis)
 # ==============================================================================
-say_ok()    { echo -e "${SUCCESS} ${WHITE}$1${NC}"; }
-say_proc()  { echo -e "\n${PROCESS} ${CYAN}$1${NC}"; }
-say_err()   { echo -e "\n${NEON_PINK}[X] $1${NC}"; }
-say_warn()  { echo -e "${NEON_PINK}[!] $1${NC}"; }
-say_hint()  { echo -e "${PURPLE}$1${NC}"; }
-hr()        { echo -e "${PURPLE}------------------------------------------------------${NC}"; }
+say_ok()    { echo -e "  ${SUCCESS} ${WHITE}$1${NC}"; }
+say_proc()  { echo -e "\n  ${PROCESS} ${CYAN}$1${NC}"; }
+say_err()   { echo -e "\n  ${NEON_PINK}✖ $1${NC}"; }
+say_warn()  { echo -e "  ${NEON_PINK}▲ $1${NC}"; }
+say_hint()  { echo -e "    ${DIM}↳ $1${NC}"; }
+hr()        { echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}"; }
 
-# --- HELPER: BARIS MENU BER-BOX (dipakai di show_shortcut_menu) ---
+# --- HELPER: BARIS MENU BER-BOX MODERN ---
 print_menu_item() {
-    printf "${NEON_PINK}║${NC} ${PURPLE}[%-2s]${NC} ${WHITE}%-46s${NC}${NEON_PINK}║${NC}\n" "$1" "$2"
+    printf "  ${PURPLE}│${NC}  ${NEON_PINK}[%-2s]${NC} ${WHITE}%-42s${NC} ${PURPLE}│${NC}\n" "$1" "$2"
 }
 
 log_section() {
@@ -84,31 +87,18 @@ log_section() {
 }
 
 # ==============================================================================
-# HELPER: EKSEKUSI DI DALAM UBUNTU (mengganti "proot-distro login ubuntu -- bash -c" berulang)
+# HELPER: EKSEKUSI DI DALAM UBUNTU
 # ==============================================================================
-ux() {
-    proot-distro login ubuntu -- bash -c "$1"
-}
+ux() { proot-distro login ubuntu -- bash -c "$1"; }
+ux_quiet() { proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1; }
+ux_ok() { proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1; }
 
-ux_quiet() {
-    proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1
-}
-
-ux_ok() {
-    proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1
-}
-
-# --- FUNGSI CEK STATUS (dipusatkan) ---
 is_ubuntu_installed()      { proot-distro login ubuntu -- true >/dev/null 2>&1; }
 is_termux_x11_installed()  { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed()       { ux_quiet "command -v startxfce4"; }
 is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
-
-# --- VALIDASI INPUT (whitelist nama file: huruf, angka, titik, strip, underscore) ---
-is_safe_filename() {
-    [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
-}
+is_safe_filename()         { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
 
 setup_nonroot_user() {
     ux "
@@ -121,7 +111,7 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS: GAYA NATIVE PROOT-DISTRO ("[*] ..." + bar %) ---
+# --- FUNGSI PROGRESS: ELEGAN & BEBAS ERROR AWK ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -131,9 +121,9 @@ show_futuristic_progress() {
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
-        local cols
-        cols=$(stty size 2>/dev/null | awk '{print $2}')
-        [ -z "$cols" ] && cols=40
+        # Menggunakan bash bawaan alih-alih awk untuk menghindari error libncurses
+        local cols=${COLUMNS:-50}
+        [ "$cols" -lt 40 ] && cols=40
 
         local activity="$label"
         local done_count=0
@@ -149,68 +139,65 @@ show_futuristic_progress() {
         if [ "$total" -gt 0 ]; then
             local percent=$(( done_count * 100 / total ))
             [ "$percent" -gt 100 ] && percent=100
-            local bar_w=20
+            local bar_w=15
             [ "$cols" -lt 40 ] && bar_w=10
             local filled=$(( percent * bar_w / 100 ))
             local bar=""
-            for ((j=0; j<filled; j++)); do bar="${bar}█"; done
-            for ((j=filled; j<bar_w; j++)); do bar="${bar}░"; done
-            printf "\r\033[K${NEON_PINK}[SYS]${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} | %s" "$bar" "$percent" "${activity:0:15}"
+            for ((j=0; j<filled; j++)); do bar="${bar}■"; done
+            for ((j=filled; j<bar_w; j++)); do bar="${bar}□"; done
+            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} ${DIM}│${NC} %s" "$bar" "$percent" "${activity:0:15}"
         else
-            local budget=$(( cols - 6 ))
+            local budget=$(( cols - 10 ))
             [ "$budget" -lt 5 ] && budget=5
             activity="${activity:0:$budget}"
-            printf "\r\033[K${WHITE}[*]${NC} %s" "$activity"
+            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}↻${NC} %s" "$activity"
         fi
 
-        sleep 0.12
+        sleep 0.15
     done
 
-    printf "\r\033[K${WHITE}[*]${NC} %s ${NEON_GREEN}selesai.${NC}\n" "$label"
+    printf "\r\033[K  ${SUCCESS} %s\n" "$label"
     echo -ne "\033[?25h"
 }
 
-# --- ANIMASI BOOTING CYBERPUNK ---
+# --- ANIMASI BOOTING ELEGAN ---
 cyber_boot_sequence() {
     clear
     local boot_logs=(
-        "CORE_KERNEL    : INITIATING MEMORY ALLOCATION..."
-        "SYS_CHK        : BYPASSING MAINFRAME ENCRYPTION... [OK]"
-        "NET_LINK       : ESTABLISHING SECURE TUNNEL... [OK]"
-        "INJECTOR       : PREPARING DEPLOYMENT VECTORS..."
+        "Allocating memory spaces..."
+        "Bypassing local encryption..."
+        "Establishing secure tunnels..."
+        "Preparing deployment vectors..."
     )
-    echo -e "${NEON_PINK}>> WAKE_UP_PROTOCOL.SH INITIATED <<${NC}\n"
-    sleep 0.5
+    echo -e "\n  ${BOLD}${WHITE}INITIATING SETUP PROTOCOL${NC}\n"
+    sleep 0.3
     for log in "${boot_logs[@]}"; do
-        echo -e "${PURPLE}[*] ${CYAN}${log}${NC}"
-        sleep 0.4
+        echo -e "  ${DIM}│${NC} ${CYAN}${log}${NC}"
+        sleep 0.3
     done
-    echo -e "\n${NEON_GREEN}>> NEURAL LINK ESTABLISHED. SYSTEM WIDE OPEN. <<${NC}"
-    sleep 1
+    echo -e "  ${SUCCESS} ${NEON_GREEN}SYSTEM READY.${NC}\n"
+    sleep 0.5
 }
 
-# --- ANIMASI BOOTING LOGO ---
+# --- ANIMASI BOOTING LOGO (MODERN MINIMALIST) ---
 animate_logo() {
     command clear
-    local w=56
-    echo -e "${NEON_PINK}╔$(printf '═%.0s' $(seq 1 $((w-2))))╗${NC}"
+    local w=52
+    echo -e "\n  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
     local lines=(
-        "  _   _ __  __        ____ ___  ____  _____ "
-        " | \ | |\ \/ /       / ___/ _ \|  _ \| ____|"
-        " |  \| | \  /  _____| |  | | | | | | |  _|  "
-        " | |\  | /  \ |_____| |__| |_| | |_| | |___ "
-        " |_| \_|/_/\_\       \____\___/|____/|_____| TERMINAL"
+        "   _  _ _  _    ___ ___  ___  ___ "
+        "  | \| | \/ |__| __/ _ \|   \| __|"
+        "  | .  |>  <___| _| (_) | |) | _| "
+        "  |_|\_/_/\_\  |___\___/|___/|___|"
+        "                                  "
     )
     for line in "${lines[@]}"; do
-        printf "${PURPLE}%s${NC}\r" "$line"
-        sleep 0.04
-        printf "${CYAN}%s${NC}\n" "$line"
+        printf "  ${PURPLE}│${NC} ${BOLD}${CYAN}%-48s${NC} ${PURPLE}│${NC}\n" "$line"
     done
-    echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
-    printf " ${WHITE}STATUS:${NEON_GREEN} %-9s${WHITE}THEME:${NEON_PINK} %-10s${WHITE}VER:${CYAN} %s${NC}\n" \
-        "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
-    echo -e "${NEON_PINK}╚$(printf '═%.0s' $(seq 1 $((w-2))))╝${NC}"
-    echo ""
+    printf "  ${PURPLE}│${NC} ${DIM}%-48s${NC} ${PURPLE}│${NC}\n" "WORKSPACE TERMINAL"
+    echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
+    printf "  ${PURPLE}│${NC} ${WHITE}ST:${NEON_GREEN}%-8s${WHITE} THM:${NEON_PINK}%-10s${WHITE} VER:${CYAN}%-11s${NC} ${PURPLE}│${NC}\n" "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
+    echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
 # --- FUNGSI PILIH RESOLUSI LAYAR GUI ---
@@ -218,30 +205,30 @@ choose_resolution() {
     local res_choice custom_res
 
     hr
-    echo -e "${WHITE}Pilih resolusi layar GUI (Pilih resolusi):${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
-    echo -e " ${PURPLE}[2]${NC} ${WHITE}Native${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kembali ke menu utama${NC}"
+    echo -e "  ${WHITE}Pilih Resolusi Layar GUI:${NC}"
+    echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
+    echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi)${NC}"
+    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Batal & Kembali${NC}"
     hr
-    echo -ne "${CYAN}[?] Pilihan:${NC} "
+    echo -ne "  ${CYAN}Pilihan ❯${NC} "
     read res_choice
 
     case "$res_choice" in
         1)
-            echo -ne "${CYAN}[?] Masukkan resolusi (format WIDTHxHEIGHT, mis. 720x1440):${NC} "
+            echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. 720x1440) ❯${NC} "
             read custom_res
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 RES_W="${BASH_REMATCH[1]}"
                 RES_H="${BASH_REMATCH[2]}"
             else
-                say_warn "Format tidak valid. Pakai default 720x1440."
+                say_warn "Format tidak valid. Memakai 720x1440."
                 RES_W="720"; RES_H="1440"
             fi
             ;;
         2) RES_W=""; RES_H="" ;;
         3) GUI_CANCELLED=1 ;;
         *)
-            say_warn "Pilihan tidak valid, pakai default 720x1440."
+            say_warn "Pilihan tidak valid, memakai 720x1440."
             RES_W="720"; RES_H="1440"
             ;;
     esac
@@ -285,30 +272,28 @@ setup_no_sandbox_fix() {
 
 # --- FUNGSI LAUNCH GUI UBUNTU ---
 launch_ubuntu_gui() {
-    # Deklarasi variabel sebagai 'local' agar tidak mencemari environment global
     local GUI_CANCELLED=0
     local RES_W="720"
     local RES_H="1440"
     local X11_PID
 
     if ! is_ubuntu_installed; then
-        say_err "Error: Ubuntu OS belum diinstal."
+        say_err "Ubuntu OS belum diinstal."
         return 1
     fi
 
     if ! is_termux_x11_installed; then
-        say_err "Error: termux-x11 belum terpasang. Jalankan ulang installer script."
+        say_err "termux-x11 belum terpasang. Jalankan ulang script."
         return 1
     fi
 
     if ! is_xfce4_installed; then
-        say_proc "XFCE4 belum terpasang di Ubuntu. Menginstal sekarang (sekali saja)..."
-        say_hint "[!] Proses ini bisa memakan waktu cukup lama tergantung koneksi."
+        say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
         log_section "INSTALL XFCE4"
 
         : > "$NX_STEP_LOG"
         (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
-        show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
+        show_futuristic_progress "Updating repos" $! "$NX_STEP_LOG"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
 
         local xfce_total
@@ -318,13 +303,13 @@ launch_ubuntu_gui() {
         : > "$NX_STEP_LOG"
         (ux "apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" > "$NX_STEP_LOG" 2>&1) &
         local xfce_pid=$!
-        show_futuristic_progress "Installing XFCE4" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
+        show_futuristic_progress "Installing Desktop" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
         if ! is_xfce4_installed; then
-            say_err "Instalasi XFCE4 gagal. Cek log lengkap di menu [8] Log error."
+            say_err "Instalasi XFCE4 gagal. Cek log."
             return 1
         fi
-        say_ok "XFCE4 berhasil dipasang di Ubuntu."
+        say_ok "XFCE4 berhasil dipasang."
     fi
 
     if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
@@ -332,32 +317,29 @@ launch_ubuntu_gui() {
     fi
 
     if ! is_nonroot_user_setup; then
-        say_proc "Menyiapkan user non-root '$NX_USER' (sekali saja)..."
+        say_proc "Menyiapkan workspace user '$NX_USER'..."
         setup_nonroot_user
         if is_nonroot_user_setup; then
-            say_ok "User '$NX_USER' berhasil dibuat."
+            say_ok "User '$NX_USER' siap."
         else
-            say_warn "Gagal membuat user non-root, sesi GUI akan tetap jalan sebagai root."
+            say_warn "Gagal membuat user non-root."
         fi
     fi
 
     setup_no_sandbox_fix
-
-    # Panggil choose_resolution (variabel lokal akan dimanipulasi dengan aman di sini)
     choose_resolution
     
     if [ "$GUI_CANCELLED" -eq 1 ]; then
-        echo -e "\n${NEON_GREEN}[➔] Dibatalkan, kembali ke menu utama.${NC}"
+        say_hint "Dibatalkan."
         return 0
     fi
     
-    # Kirim hasil parameter resolusi
     write_gui_startup_script "$RES_W" "$RES_H"
 
     pkill -f "termux-x11" >/dev/null 2>&1
     sleep 1
 
-    say_proc "Menyalakan server X11 (display :2) & masuk ke Ubuntu XFCE4..."
+    say_proc "Menyalakan Display Server (:2)..."
 
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
@@ -378,82 +360,57 @@ WRAPEOF
 
     sleep 2
     if ! kill -0 "$X11_PID" 2>/dev/null; then
-        say_err "Gagal menyalakan server X11."
-        say_hint "[?] Pastikan aplikasi 'Termux:X11' sudah terinstal dan coba lagi."
-        say_hint "[?] Detail lengkap ada di menu [8] Log error."
+        say_err "Gagal menyalakan X11. Cek log error."
         return 1
     fi
 
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
+    say_hint "Buka aplikasi 'Termux:X11' di Android."
 
-    echo -e "${PROCESS} ${CYAN}Buka aplikasi 'Termux:X11' di Android kalau belum otomatis terbuka.${NC}\n"
-
-    show_futuristic_progress "GUI Ubuntu Aktif (Termux:X11)..." "$X11_PID"
+    show_futuristic_progress "Sesi GUI Aktif..." "$X11_PID"
     wait "$X11_PID" 2>/dev/null
-
-    echo -e "\n${NEON_GREEN}[➔] Sesi GUI Ubuntu ditutup.${NC}"
+    say_ok "Sesi GUI ditutup."
 }
 
 # --- FUNGSI KILL GUI UBUNTU ---
 kill_ubuntu_gui() {
-    say_proc "Mematikan sesi GUI Ubuntu (XFCE4 & Termux:X11)..."
-
+    say_proc "Terminating GUI processes..."
     local found=0
 
-    if pkill -f "termux-x11" >/dev/null 2>&1; then
-        found=1
-    fi
-
-    if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then
-        found=1
-    fi
+    if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
+    if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
 
     sleep 1
-
     if [ "$found" -eq 1 ]; then
-        say_ok "Sesi GUI Ubuntu berhasil dimatikan."
+        say_ok "Sesi dibersihkan."
     else
-        echo -e "${NEON_PINK}[X]${NC} ${WHITE}Tidak ada sesi GUI yang sedang berjalan.${NC}"
+        say_hint "Tidak ada sesi aktif."
     fi
 }
 
 # --- FUNGSI CEK SESI GUI AKTIF ---
 check_gui_session() {
-    say_proc "Mengecek sesi GUI yang sedang aktif..."
-    echo ""
-
+    say_proc "Memeriksa sesi..."
     local x11_procs x11_count xfce_procs
-
     x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
     xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
 
     if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
-        say_ok "Tidak ada sesi GUI yang sedang berjalan. Aman."
+        say_ok "Aman. Tidak ada proses GUI."
         return 0
     fi
 
+    echo ""
     if [ -n "$x11_procs" ]; then
         x11_count=$(echo "$x11_procs" | wc -l)
-        echo -e "${WHITE}Proses Termux:X11 aktif di sisi Termux (${x11_count}):${NC}"
-        echo -e "${CYAN}${x11_procs}${NC}"
-        if [ "$x11_count" -gt 1 ]; then
-            say_warn "Terdeteksi lebih dari 1 proses termux-x11. Kemungkinan ada sesi lama yang STALE."
-        fi
-    else
-        say_hint "--> Tidak ada proses termux-x11 aktif di sisi Termux."
+        echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
     fi
-
-    echo ""
-
     if [ -n "$xfce_procs" ]; then
-        echo -e "${WHITE}Proses XFCE4/DBus aktif di dalam Ubuntu:${NC}"
-        echo -e "${CYAN}${xfce_procs}${NC}"
-    else
-        say_hint "--> Tidak ada proses XFCE4/DBus aktif di dalam Ubuntu."
+        echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
     fi
 
     echo ""
-    echo -ne "${CYAN}[?] Mau bersihkan semua sesi (termasuk yang stale) sekarang? (y/n):${NC} "
+    echo -ne "  ${CYAN}Bersihkan semua sesi sekarang? (y/n) ❯${NC} "
     read clean_choice
     if [ "$clean_choice" == "y" ] || [ "$clean_choice" == "Y" ]; then
         kill_ubuntu_gui
@@ -463,21 +420,21 @@ check_gui_session() {
 # --- FUNGSI QUICK DEV-TOOLS INSTALLER ---
 quick_devtools_installer() {
     if ! is_ubuntu_installed; then
-        say_err "Error: Ubuntu OS belum diinstal."
+        say_err "Ubuntu OS belum diinstal."
         return 1
     fi
 
     while true; do
         hr
-        echo -e "${WHITE}QUICK DEV-TOOLS INSTALLER (UBUNTU)${NC}"
-        echo -e " ${PURPLE}[1]${NC} ${WHITE}Install Semua${NC} ${CYAN}(git, python3, nodejs, build-essential, curl, wget, vim)${NC}"
-        echo -e " ${PURPLE}[2]${NC} ${WHITE}Git${NC}"
-        echo -e " ${PURPLE}[3]${NC} ${WHITE}Python3 + pip${NC}"
-        echo -e " ${PURPLE}[4]${NC} ${WHITE}Node.js + npm${NC}"
-        echo -e " ${PURPLE}[5]${NC} ${WHITE}Build-essential${NC} ${CYAN}(gcc, make, dll)${NC}"
-        echo -e " ${PURPLE}[6]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${WHITE}DEV-TOOLS INSTALLER${NC}"
+        echo -e "  ${PURPLE}[1]${NC} ${WHITE}Full Stack${NC} ${DIM}(git, python3, nodejs, gcc, curl...)${NC}"
+        echo -e "  ${PURPLE}[2]${NC} ${WHITE}Git Only${NC}"
+        echo -e "  ${PURPLE}[3]${NC} ${WHITE}Python3 + pip${NC}"
+        echo -e "  ${PURPLE}[4]${NC} ${WHITE}Node.js + npm${NC}"
+        echo -e "  ${PURPLE}[5]${NC} ${WHITE}C/C++ Build Tools${NC}"
+        echo -e "  ${PURPLE}[6]${NC} ${WHITE}Kembali${NC}"
         hr
-        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read dev_choice
 
         local pkgs=""
@@ -488,65 +445,50 @@ quick_devtools_installer() {
             4) pkgs="nodejs npm" ;;
             5) pkgs="build-essential" ;;
             6) break ;;
-            *)
-                say_warn "Pilihan tidak valid."
-                continue
-                ;;
+            *) say_warn "Pilihan tidak valid."; continue ;;
         esac
 
-        say_proc "Menginstal: ${pkgs}..."
+        say_proc "Menyiapkan: ${pkgs}..."
         log_section "DEV-TOOLS INSTALL ($pkgs)"
 
         : > "$NX_STEP_LOG"
         (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
         show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
-        cat "$NX_STEP_LOG" >> "$NX_LOG"
-
+        
         local dev_total
         dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$dev_total" ] && dev_total=0
 
         : > "$NX_STEP_LOG"
         (ux "apt install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
-        local dev_pid=$!
-        show_futuristic_progress "Installing packages" "$dev_pid" "$NX_STEP_LOG" "$dev_total"
-        cat "$NX_STEP_LOG" >> "$NX_LOG"
-        say_ok "Selesai menginstal."
+        show_futuristic_progress "Installing modules" $! "$NX_STEP_LOG" "$dev_total"
+        say_ok "Modul terpasang."
     done
 }
 
 # --- FUNGSI CHECK UPDATE ---
 check_for_update() {
-    say_proc "Mengecek update dari GitHub..."
-
+    say_proc "Sinkronisasi ke GitHub..."
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
     rm -f "$tmp_file"
 
-    if ! curl --max-time 20 --retry 2 --retry-delay 2 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null; then
-        say_err "Gagal mengambil update. Cek koneksi internet atau URL repo di NX_CODE_REPO_RAW_URL."
-        rm -f "$tmp_file"
-        return 1
-    fi
-
-    if [ ! -s "$tmp_file" ]; then
-        say_err "File update kosong/tidak valid. Cek URL repo."
+    if ! curl --silent --max-time 15 --retry 2 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file"; then
+        say_err "Gagal. Cek koneksi internet."
         rm -f "$tmp_file"
         return 1
     fi
 
     if diff -q "$tmp_file" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-        say_ok "Sudah pakai versi terbaru. Tidak ada update."
+        say_ok "Sistem sudah up-to-date."
         rm -f "$tmp_file"
         return 0
     fi
 
-    say_ok "Update ditemukan! Menerapkan..."
+    say_ok "Pembaruan tersedia! Menginstal patch..."
     mv "$tmp_file" "$HOME/nx_code.sh"
     chmod +x "$HOME/nx_code.sh"
-
-    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
-
-    say_proc "Menjalankan ulang installer (reinstall + restart terminal)..."
+    
+    say_proc "Restarting terminal UI..."
     sleep 1
     exec bash "$HOME/nx_code.sh"
 }
@@ -555,43 +497,30 @@ check_for_update() {
 view_error_log() {
     while true; do
         hr
-        echo -e "${WHITE}LOG ERROR${NC}"
-        echo -e " ${PURPLE}[1]${NC} ${WHITE}Lihat log terbaru (50 baris terakhir)${NC}"
-        echo -e " ${PURPLE}[2]${NC} ${WHITE}Lihat semua log${NC}"
-        echo -e " ${PURPLE}[3]${NC} ${WHITE}Hapus log${NC}"
-        echo -e " ${PURPLE}[4]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${WHITE}SYSTEM LOGS${NC}"
+        echo -e "  ${PURPLE}[1]${NC} ${WHITE}Lihat log terbaru${NC} ${DIM}(50 baris)${NC}"
+        echo -e "  ${PURPLE}[2]${NC} ${WHITE}Bersihkan log${NC}"
+        echo -e "  ${PURPLE}[3]${NC} ${WHITE}Kembali${NC}"
         hr
-        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read log_choice
 
         case "$log_choice" in
             1)
                 if [ -s "$NX_LOG" ]; then
                     hr
-                    tail -n 50 "$NX_LOG"
+                    tail -n 50 "$NX_LOG" | sed 's/^/  /'
                     hr
                 else
-                    say_ok "Log masih kosong, belum ada error tercatat."
+                    say_ok "Log bersih. Tidak ada error."
                 fi
                 ;;
             2)
-                if [ -s "$NX_LOG" ]; then
-                    hr
-                    cat "$NX_LOG"
-                    hr
-                    echo -e "${CYAN}[?] Geser/scroll ke atas buat baca dari awal.${NC}"
-                else
-                    say_ok "Log masih kosong, belum ada error tercatat."
-                fi
-                ;;
-            3)
                 rm -f "$NX_LOG"
-                say_ok "Log dihapus."
+                say_ok "Log telah dihapus."
                 ;;
-            4) break ;;
-            *)
-                say_warn "Pilihan tidak valid."
-                ;;
+            3) break ;;
+            *) say_warn "Tidak valid." ;;
         esac
     done
 }
@@ -600,26 +529,24 @@ view_error_log() {
 select_theme_menu() {
     while true; do
         hr
-        echo -e "${WHITE}PILIH TEMA WARNA${NC} ${CYAN}(aktif: ${NX_CURRENT_THEME})${NC}"
+        echo -e "  ${WHITE}UI THEMES${NC} ${DIM}(Aktif: ${NX_CURRENT_THEME})${NC}"
         hr
 
         local i=1
         for t in "${NX_AVAILABLE_THEMES[@]}"; do
             if [ "$t" == "$NX_CURRENT_THEME" ]; then
-                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${t}${NC} ${NEON_GREEN}[✔ aktif]${NC}"
+                echo -e "  ${PURPLE}[$i]${NC} ${WHITE}${t}${NC} ${NEON_GREEN}●${NC}"
             else
-                echo -e " ${PURPLE}[$i]${NC} ${WHITE}${t}${NC}"
+                echo -e "  ${PURPLE}[$i]${NC} ${DIM}${t}${NC}"
             fi
             i=$((i+1))
         done
-        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Simpan & Kembali${NC}"
         hr
-        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read theme_choice
 
-        if [ "$theme_choice" == "0" ]; then
-            break
-        fi
+        if [ "$theme_choice" == "0" ]; then break; fi
 
         local idx=$((theme_choice - 1))
         local chosen="${NX_AVAILABLE_THEMES[$idx]:-}"
@@ -631,112 +558,90 @@ select_theme_menu() {
 
         echo "$chosen" > "$NX_THEME_FILE"
         load_theme
-
         animate_logo
-        say_ok "Tema berhasil diganti ke: ${NEON_GREEN}${chosen}${NC}"
+        say_ok "Tema diaplikasikan."
     done
 }
 
 # --- FUNGSI APP STORE ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
-        say_err "Error: Ubuntu OS belum diinstal."
+        say_err "Ubuntu OS belum terinstal."
         return 1
     fi
 
-    say_proc "Mengambil daftar app dari repo..."
-
+    say_proc "Menghubungkan ke App Repository..."
     local manifest="$HOME/.nx_apps_manifest.tmp"
     rm -f "$manifest"
 
-    if ! curl --max-time 20 --retry 2 --retry-delay 2 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest" 2>/dev/null; then
-        say_err "Gagal ambil daftar app. Cek koneksi internet atau URL di NX_APPS_MANIFEST_URL."
-        rm -f "$manifest"
+    if ! curl --silent --max-time 15 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest"; then
+        say_err "Koneksi ke App Store gagal."
         return 1
     fi
 
-    if [ ! -s "$manifest" ]; then
-        say_err "Daftar app kosong/tidak valid."
-        rm -f "$manifest"
-        return 1
-    fi
-
-    # Bersihkan karakter carriage return (\r) jika ada
     sed -i 's/\r$//' "$manifest" 2>/dev/null
 
     local names=() scripts=()
-    
-    # Membaca format baru: Nama_Aplikasi|nama_script.sh
     while IFS='|' read -r a_name a_script a_rest; do
         [ -z "$a_name" ] && continue
-
-        if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then
-            say_warn "Melewati entri '$a_name': nama script tidak valid."
-            continue
-        fi
-
+        if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then continue; fi
         names+=("$a_name")
         scripts+=("$a_script")
     done < "$manifest"
     rm -f "$manifest"
 
     if [ "${#names[@]}" -eq 0 ]; then
-        say_err "Daftar app kosong."
+        say_err "Repositori kosong."
         return 1
     fi
 
     while true; do
         hr
-        echo -e "${WHITE}APP STORE${NC}"
+        echo -e "  ${WHITE}SOFTWARE CENTER${NC}"
         for i in "${!names[@]}"; do
-            printf " ${PURPLE}[%d]${NC} ${WHITE}%s${NC}\n" "$((i+1))" "${names[$i]}"
+            printf "  ${PURPLE}[%d]${NC} ${WHITE}%s${NC}\n" "$((i+1))" "${names[$i]}"
         done
-        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
-        echo -ne "${CYAN}[?] Pilihan:${NC} "
+        echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read app_choice
 
-        if [ "$app_choice" == "0" ]; then
-            break
-        fi
+        if [ "$app_choice" == "0" ]; then break; fi
 
         local idx=$((app_choice - 1))
         if [ -z "${names[$idx]:-}" ]; then
-            say_warn "Pilihan tidak valid."
+            say_warn "Tidak valid."
             continue
         fi
 
-        say_proc "Menginstal ${names[$idx]}..."
+        say_proc "Mengunduh ${names[$idx]}..."
         log_section "APP INSTALL: ${names[$idx]}"
 
         local target_url="$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}"
         local tmp_script="$HOME/.tmp_install_$(basename "${scripts[$idx]}")"
 
-        if curl --max-time 30 --retry 2 --retry-delay 2 -fsSL "$target_url" -o "$tmp_script"; then
+        if curl --silent --max-time 30 -fsSL "$target_url" -o "$tmp_script"; then
             if [ -s "$tmp_script" ]; then
-                
-                # --- LAYER KEAMANAN: Dry-run Syntax Check ---
                 if ! bash -n "$tmp_script"; then
-                    say_err "Instalasi Dibatalkan: Ditemukan syntax error. Script mungkin terpotong saat diunduh."
+                    say_err "Syntax error pada script yang diunduh. Batal."
                     rm -f "$tmp_script"
                     continue
                 fi
 
-                say_proc "Menjalankan instalasi..."
+                say_proc "Menjalankan proses instalasi..."
                 proot-distro login ubuntu -- bash < "$tmp_script" 2>&1 | tee -a "$NX_LOG"
 
                 if [ "${PIPESTATUS[0]}" -eq 0 ]; then
-                    say_ok "Selesai instal ${names[$idx]}."
+                    say_ok "${names[$idx]} sukses diinstal."
                 else
-                    say_err "Terjadi error saat instalasi ${names[$idx]}. Cek log!"
+                    say_err "Gagal. Cek log."
                 fi
             else
-                say_err "Gagal: Script yang diunduh kosong atau URL tidak valid."
+                say_err "Script kosong / URL mati."
             fi
         else
-            say_err "Gagal mengunduh script. Cek koneksi internet Anda."
+            say_err "Gagal mengunduh."
         fi
-
         rm -f "$tmp_script"
     done
 }
@@ -745,63 +650,45 @@ app_store_menu() {
 show_shortcut_menu() {
     while true; do
         animate_logo
-        local w=56
-        echo -e "${NEON_PINK}╔$(printf '═%.0s' $(seq 1 $((w-2))))╗${NC}"
-        printf "${NEON_PINK}║${NC}%*s${NEON_PINK}║${NC}\n" $((w-2)) ""
-        local title="NX_CODE CORE INTERFACE ${NX_CODE_VERSION}"
-        local pad=$(( (w - 2 - ${#title}) / 2 ))
-        printf "${NEON_PINK}║${NC}%*s${WHITE}%s${NC}%*s${NEON_PINK}║${NC}\n" "$pad" "" "$title" $((w-2-pad-${#title})) ""
-        printf "${NEON_PINK}║${NC}%*s${NEON_PINK}║${NC}\n" $((w-2)) ""
-        echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
-
-        print_menu_item "1"  "Ubuntu CLI"
-        print_menu_item "2"  "Ubuntu GUI (XFCE4 via Termux:X11)"
-        print_menu_item "3"  "Kill Ubuntu GUI (XFCE4 via Termux:X11)"
-        print_menu_item "4"  "Cek sesi xfce yang aktif"
-        print_menu_item "5"  "Quick Dev-Tools Installer"
+        local w=52
+        echo -e "  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
+        print_menu_item "1"  "Masuk Ubuntu (CLI)"
+        print_menu_item "2"  "Masuk Ubuntu (GUI - XFCE4)"
+        print_menu_item "3"  "Matikan Sesi GUI"
+        print_menu_item "4"  "Status Background Proses"
+        print_menu_item "5"  "Dev-Tools Installer"
         print_menu_item "6"  "System Monitor (HTop)"
-        print_menu_item "7"  "Check update"
-        print_menu_item "8"  "Log error"
-        print_menu_item "9"  "App"
-        print_menu_item "10" "Ganti Tema Warna (aktif: ${NX_CURRENT_THEME})"
-        echo -e "${NEON_PINK}╠$(printf '═%.0s' $(seq 1 $((w-2))))╣${NC}"
-        print_menu_item "0"  "Kembali ke home"
-        echo -e "${NEON_PINK}╚$(printf '═%.0s' $(seq 1 $((w-2))))╝${NC}"
-        echo -ne "${CYAN}[?] Select Option:${NC} "
+        print_menu_item "7"  "System Update"
+        print_menu_item "8"  "Diagnostic Logs"
+        print_menu_item "9"  "Software Center (App Store)"
+        print_menu_item "10" "Pengaturan Tema Visual"
+        echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
+        print_menu_item "0"  "Tutup Panel"
+        echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
+        echo -ne "  ${CYAN}Execute ❯${NC} "
         read pilihan
 
         case $pilihan in
             1)
-                say_proc "Launching Ubuntu CLI Core..."
+                say_proc "Booting Core..."
                 sleep 1
                 if is_ubuntu_installed; then
                     proot-distro login ubuntu
                 else
-                    say_err "Error: Ubuntu OS belum diinstal. Jalankan ulang script secara manual."
+                    say_err "Ubuntu belum terinstal."
                 fi
-                sleep 1
-                ;;
+                sleep 1 ;;
             2) launch_ubuntu_gui; sleep 1 ;;
             3) kill_ubuntu_gui; sleep 1 ;;
-            4) check_gui_session; sleep 1 ;;
+            4) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read; ;;
             5) quick_devtools_installer; sleep 1 ;;
-            6)
-                say_proc "Booting HTop System Monitor..."
-                sleep 0.5
-                htop
-                ;;
+            6) htop ;;
             7) check_for_update; sleep 1 ;;
             8) view_error_log; sleep 1 ;;
             9) app_store_menu; sleep 1 ;;
             10) select_theme_menu; sleep 1 ;;
-            0)
-                echo -e "\n${NEON_GREEN}[➔] Returning to home base.${NC}\n"
-                break
-                ;;
-            *)
-                echo -e "\n\033[1;95m[!] ALERT: INVALID OPTION SELECTED.\033[0m"
-                sleep 1
-                ;;
+            0) echo -e "\n  ${SUCCESS} Disconnected.\n"; break ;;
+            *) echo -e "\n  ${NEON_PINK}✖ Invalid syntax.${NC}"; sleep 1 ;;
         esac
     done
 }
@@ -822,17 +709,17 @@ fi
 if [ "$1" == "--ui-only" ]; then
     animate_logo
 
-    ub_status="${NEON_PINK}Not Installed${NC}"
-    st_status="${NEON_PINK}Not Setup${NC}"
-    clean_status="${CYAN}Skipped (already today)${NC}"
-
-    (sleep 0.6) &
-    show_futuristic_progress "Checking Ubuntu Core" $!
-    is_ubuntu_installed && ub_status="${NEON_GREEN}Ready${NC}"
+    ub_status="${DIM}Offline${NC}"
+    st_status="${DIM}Unlinked${NC}"
+    clean_status="${DIM}Skipped${NC}"
 
     (sleep 0.4) &
-    show_futuristic_progress "Checking Storage Access" $!
-    is_storage_setup && st_status="${NEON_GREEN}Ready${NC}"
+    show_futuristic_progress "Scanning Ubuntu Core" $!
+    is_ubuntu_installed && ub_status="${NEON_GREEN}Active${NC}"
+
+    (sleep 0.3) &
+    show_futuristic_progress "Verifying Storage" $!
+    is_storage_setup && st_status="${NEON_GREEN}Linked${NC}"
 
     LAST_CLEAN_FILE="$HOME/.nx_code_last_clean"
     TODAY=$(date +%Y%m%d)
@@ -842,36 +729,30 @@ if [ "$1" == "--ui-only" ]; then
     if [ "$TODAY" != "$LAST_CLEAN" ]; then
         (
             pkg clean -y
-            if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then
-                rm -rf "${TMPDIR:?}"/* 2>/dev/null
-            fi
+            if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then rm -rf "${TMPDIR:?}"/* 2>/dev/null; fi
         ) > /dev/null 2>&1 &
-        clean_pid=$!
-        show_futuristic_progress "Running Auto-Cleaner" "$clean_pid"
+        show_futuristic_progress "Flushing Cache" $!
         echo "$TODAY" > "$LAST_CLEAN_FILE"
-        clean_status="${NEON_GREEN}Done${NC}"
+        clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
     echo ""
-    echo -e "${PURPLE}┌──────────────────────────────────────────────────┐${NC}"
-    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Version"       "${CYAN}${NX_CODE_VERSION}${NC}"
-    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Ubuntu Core"    "$ub_status"
-    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Storage Access" "$st_status"
-    printf "${PURPLE}│${NC} %-20s %-30b${PURPLE}│${NC}\n" "Auto-Cleaner"   "$clean_status"
-    echo -e "${PURPLE}└──────────────────────────────────────────────────┘${NC}"
-    echo ""
-    echo -e " ${NEON_PINK}[!]${NC} ${WHITE}Ketik ${CYAN}nx-menu${WHITE} untuk akses menu${NC}"
-    echo ""
+    echo -e "  ${PURPLE}╭──────────────────────────────────────────────────╮${NC}"
+    printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "System Core"    "$ub_status"
+    printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "Local Storage"  "$st_status"
+    printf "  ${PURPLE}│${NC} %-20s %-39b${PURPLE}│${NC}\n" "Daily Optimizer" "$clean_status"
+    echo -e "  ${PURPLE}╰──────────────────────────────────────────────────╯${NC}"
+    echo -e "\n  ${DIM}Ketik${NC} ${CYAN}nx-menu${NC} ${DIM}untuk membuka interface utama.${NC}\n"
     exit 0
 fi
 
 # ==============================================================================
-# MODE INSTALASI AWAL (CYBERPUNK OPTIMIZED)
+# MODE INSTALASI AWAL (SILENT & CLASSY)
 # ==============================================================================
 cyber_boot_sequence
 animate_logo
 
-echo -e "${WHITE}>> DEPLOYING CORE DEPENDENCIES...${NC}\n"
+say_proc "Injecting Base Dependencies..."
 
 : > "$NX_STEP_LOG"
 (
@@ -879,50 +760,42 @@ echo -e "${WHITE}>> DEPLOYING CORE DEPENDENCIES...${NC}\n"
     pkg upgrade -y -o Dpkg::Options::="--force-confold" && \
     pkg install proot-distro htop coreutils x11-repo curl ncurses-utils -y -o Dpkg::Options::="--force-confold"
 ) > "$NX_STEP_LOG" 2>&1 &
-show_futuristic_progress "Syncing Global Repos & Injecting Base Nodes" $! "$NX_STEP_LOG"
+show_futuristic_progress "Configuring Repositories" $! "$NX_STEP_LOG"
 
 : > "$NX_STEP_LOG"
 (pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Compiling X11 Display Subsystems" $! "$NX_STEP_LOG"
+show_futuristic_progress "Mounting Display Engines" $! "$NX_STEP_LOG"
 
 if ! is_ubuntu_installed; then
-    say_proc "INITIALIZING OS VIRTUALIZATION..."
+    say_proc "Generating Virtual Environment..."
     proot-distro remove ubuntu > /dev/null 2>&1
-    say_hint "[!] Downloading Ubuntu Core Image. Standby..."
-    hr
-    proot-distro install ubuntu
-    hr
+    
+    # SILENT INSTALL: Output dari instalasi proot disembunyikan agar layar tetap bersih
+    : > "$NX_STEP_LOG"
+    (proot-distro install ubuntu > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "Downloading Ubuntu Core (Bisa memakan waktu)" $! "$NX_STEP_LOG"
 fi
-
-(sleep 1) &
-show_futuristic_progress "Verifying Hypervisor Integrity" $!
 
 echo ""
 if is_ubuntu_installed; then
-    echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_GREEN}Deployed & Online${NC}"
+    say_ok "OS Core        : ${NEON_GREEN}Operational${NC}"
 else
-    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_PINK}Deployment Failed${NC}"
+    say_err "OS Core        : Failed"
 fi
 
 if is_termux_x11_installed; then
-    echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Deployed & Online${NC}"
+    say_ok "Display Server : ${NEON_GREEN}Operational${NC}"
 else
-    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Deployment Failed${NC}"
+    say_err "Display Server : Failed"
 fi
-echo ""
 
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
     local src=""
-    if [ -n "$BASH_SOURCE" ] && [ -f "${BASH_SOURCE[0]}" ]; then
-        src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
-    elif [ -f "$0" ]; then
-        src=$(realpath "$0" 2>/dev/null)
-    fi
+    if [ -n "$BASH_SOURCE" ] && [ -f "${BASH_SOURCE[0]}" ]; then src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
+    elif [ -f "$0" ]; then src=$(realpath "$0" 2>/dev/null); fi
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
-        cp "$src" "$dest"
-        chmod +x "$dest"
-        return 0
+        cp "$src" "$dest"; chmod +x "$dest"; return 0
     fi
     if [ ! -f "$dest" ]; then return 1; fi
     return 0
@@ -930,8 +803,6 @@ copy_self_to_home() {
 
 if copy_self_to_home; then
     chmod +x "$HOME/nx_code.sh" 2>/dev/null
-else
-    say_warn "WARNING: Source injected via memory stream (pipe). Cannot auto-copy."
 fi
 
 if grep -q 'command rm -i "\$@"' "$HOME/.bashrc" 2>/dev/null; then
@@ -942,66 +813,41 @@ if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
     cat << 'EOF' >> "$HOME/.bashrc"
 
 # --- NX_CODE ENVIRONMENT ---
-if [ -f "$HOME/nx_code.sh" ]; then
-    bash "$HOME/nx_code.sh" --ui-only
-fi
+if [ -f "$HOME/nx_code.sh" ]; then bash "$HOME/nx_code.sh" --ui-only; fi
 
 alias ls='ls --color=auto --group-directories-first'
 alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 
-PS1="\[\033[1;92m\]┌──(\[\033[1;95m\]NX_CODE\[\033[1;92m\])─[\[\033[0;36m\]\w\[\033[1;92m\]]\n└─> \[\033[0m\]"
+PS1="\n\[\033[1;36m\]╭─\[\033[1;32m\]nxuser\[\033[0;37m\]@\[\033[1;35m\]terminal\[\033[0m\] \[\033[2m\]\w\[\033[0m\]\n\[\033[1;36m\]╰─❯ \[\033[0m\]"
 
 clear() {
     command clear
-    if [ -f "$HOME/nx_code.sh" ]; then
-        bash "$HOME/nx_code.sh" --logo-only
-    fi
+    if [ -f "$HOME/nx_code.sh" ]; then bash "$HOME/nx_code.sh" --logo-only; fi
 }
 
 rm() {
     if [ $# -eq 0 ]; then
-        echo -e "\033[1;95m[!] ALERT: NO TARGET SPECIFIED FOR PURGE MODULE.\033[0m"
-        echo -e "\033[0;35m[?] SYSTEM HINT: Usage -> rm [file_name] or rm -rf [folder_name]\033[0m"
+        echo -e "\033[1;91m✖ Target file not specified.\033[0m"
         return 1
     fi
     command rm "$@"
 }
-
-command_not_found_handle() {
-    local cmd="$1"
-    echo -e "\033[1;91m[CRITICAL] UNAUTHORIZED SYNTAX: '${cmd}'\033[0m"
-    echo -e "\033[0;36m[SYS] Module missing or corrupted. Verify parameters.\033[0m"
-    return 127
-}
 # ---------------------------
 EOF
-    say_ok "Auto-Startup Override    : ${NEON_GREEN}Injected Successfully${NC}"
-else
-    echo -e "${SUCCESS} ${WHITE}Auto-Startup Override    :${NC} ${CYAN}Already Configured${NC}"
+    say_ok "Boot Sequence  : ${NEON_GREEN}Injected${NC}"
 fi
 
-(dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 1) 2>/dev/null &
-show_futuristic_progress "Scanning Active Modules" $!
+(dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 0.5) 2>/dev/null &
+show_futuristic_progress "Validating Subsystems" $!
 
-if [ -f "$TMPDIR/installed_pkgs.txt" ]; then
-    total_pkgs=$(wc -l < "$TMPDIR/installed_pkgs.txt")
-    echo -e "\n${PURPLE}>> DATABASE SCAN YIELD: ${NEON_GREEN}${total_pkgs} MODULES ACTIVE${NC}"
-    echo -e "${CYAN}>> EXTRACTING CORE LOADOUT:${NC}"
-    awk '{print "    [■] " $2 " (v" $3 ")"}' "$TMPDIR/installed_pkgs.txt" | head -n 4
-    echo -e "    ${PURPLE}[■] ...and other background dependencies${NC}"
-    rm -f "$TMPDIR/installed_pkgs.txt"
-fi
+echo -e "\n  ${SUCCESS} ${NEON_GREEN}INSTALLATION COMPLETE${NC}"
+hr
 
-echo -e "\n${NEON_GREEN}[INSTALLATION COMPLETE]${NC}"
-echo -e "${NEON_PINK}======================================================${NC}"
-echo -e "${NEON_GREEN}       SYSTEM INITIALIZED. WELCOME TO NX_CODE.        ${NC}"
-echo -e "${NEON_PINK}======================================================${NC}"
-
-echo -e "${WHITE}REBOOT REQUIRED:${NC}"
-echo -e " ${PURPLE}[1]${NC} ${WHITE}Initiate Soft Reboot (Rekomendasi)${NC}"
-echo -e " ${PURPLE}[2]${NC} ${WHITE}Exit Terminal${NC}"
-echo -ne "${CYAN}[?] Pilihan:${NC} "
+echo -e "  ${WHITE}Terminal memerlukan proses Restart:${NC}"
+echo -e "  ${PURPLE}[1]${NC} ${WHITE}Restart Otomatis (Rekomendasi)${NC}"
+echo -e "  ${PURPLE}[2]${NC} ${WHITE}Keluar${NC}"
+echo -ne "  ${CYAN}Pilihan ❯${NC} "
 read final_choice
 
 case "$final_choice" in
