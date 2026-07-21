@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.16"
+NX_CODE_VERSION="v1.0.18"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -11,15 +11,20 @@ NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
-# --- LOG ERROR ---
+# --- LOG ERROR & TEMP ---
 NX_LOG="$HOME/.nx_code_error.log"
+NX_TEMP_DIR="$HOME/.tmp"
+mkdir -p "$NX_TEMP_DIR"
 
 # --- MODE NON-INTERAKTIF ---
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
 # File log sementara untuk progress bar
-NX_STEP_LOG="${TMPDIR:-/tmp}/.nx_step.log"
+NX_STEP_LOG="$NX_TEMP_DIR/.nx_step.log"
+
+# --- TRAP: Pastikan kursor selalu muncul kembali jika script terhenti paksa ---
+trap 'echo -ne "\033[?25h"' EXIT
 
 # ==============================================================================
 # HELPER: TEMA WARNA (CLASSY EDITION)
@@ -63,7 +68,7 @@ load_theme() {
 load_theme
 
 # ==============================================================================
-# HELPER: OUTPUT MESSAGE (Gaya Minimalis)
+# HELPER: OUTPUT MESSAGE
 # ==============================================================================
 say_ok()    { echo -e "  ${SUCCESS} ${WHITE}$1${NC}"; }
 say_proc()  { echo -e "\n  ${PROCESS} ${CYAN}$1${NC}"; }
@@ -72,7 +77,6 @@ say_warn()  { echo -e "  ${NEON_PINK}▲ $1${NC}"; }
 say_hint()  { echo -e "    ${DIM}↳ $1${NC}"; }
 hr()        { echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}"; }
 
-# --- HELPER: BARIS MENU BER-BOX MODERN ---
 print_menu_item() {
     printf "  ${PURPLE}│${NC}  ${NEON_PINK}[%-2s]${NC} ${WHITE}%-42s${NC} ${PURPLE}│${NC}\n" "$1" "$2"
 }
@@ -97,7 +101,9 @@ is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
 
 setup_nonroot_user() {
     ux "
-        useradd -m -s /bin/bash $NX_USER 2>/dev/null
+        if ! id $NX_USER >/dev/null 2>&1; then
+            useradd -m -s /bin/bash $NX_USER 2>/dev/null
+        fi
         echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
         chmod 0440 /etc/sudoers.d/$NX_USER
         mkdir -p /storage
@@ -106,7 +112,7 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS: ELEGAN & BEBAS ERROR AWK ---
+# --- FUNGSI PROGRESS AMAN KURSOR ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -154,7 +160,6 @@ show_futuristic_progress() {
     echo -ne "\033[?25h"
 }
 
-# --- ANIMASI BOOTING ELEGAN ---
 cyber_boot_sequence() {
     clear
     local boot_logs=(
@@ -173,7 +178,6 @@ cyber_boot_sequence() {
     sleep 0.5
 }
 
-# --- ANIMASI BOOTING LOGO (MODERN MINIMALIST) ---
 animate_logo() {
     command clear
     local w=52
@@ -194,7 +198,7 @@ animate_logo() {
     echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
-# --- FUNGSI PILIH RESOLUSI LAYAR GUI ---
+# --- VALIDASI RESOLUSI LAYAR KETAT ---
 choose_resolution() {
     local res_choice custom_res
 
@@ -212,8 +216,16 @@ choose_resolution() {
             echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. 720x1440) ❯${NC} "
             read custom_res
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
-                RES_W="${BASH_REMATCH[1]}"
-                RES_H="${BASH_REMATCH[2]}"
+                local w="${BASH_REMATCH[1]}"
+                local h="${BASH_REMATCH[2]}"
+                # Validasi batas wajar resolusi layar HP/Tablet
+                if [ "$w" -ge 400 ] && [ "$w" -le 7680 ] && [ "$h" -ge 400 ] && [ "$h" -le 4320 ]; then
+                    RES_W="$w"
+                    RES_H="$h"
+                else
+                    say_warn "Resolusi di luar batas wajar. Memakai 720x1440."
+                    RES_W="720"; RES_H="1440"
+                fi
             else
                 say_warn "Format tidak valid. Memakai 720x1440."
                 RES_W="720"; RES_H="1440"
@@ -228,7 +240,6 @@ choose_resolution() {
     esac
 }
 
-# --- FUNGSI TULIS SCRIPT STARTUP GUI KE DALAM UBUNTU (DENGAN AUDIO BRIDGE) ---
 write_gui_startup_script() {
     local target_w="$1"
     local target_h="$2"
@@ -255,7 +266,6 @@ EOF
     ux_ok "chmod 755 /usr/local/bin/nx-gui-startup.sh"
 }
 
-# --- FUNGSI FIX OTOMATIS "--no-sandbox" ---
 setup_no_sandbox_fix() {
     ux_ok "mkdir -p /etc/profile.d; echo 'export ELECTRON_DISABLE_SANDBOX=1' > /etc/profile.d/nx_no_sandbox.sh"
     local apps="google-chrome google-chrome-stable chromium chromium-browser"
@@ -265,7 +275,6 @@ setup_no_sandbox_fix() {
     done
 }
 
-# --- FUNGSI INISIALISASI AUDIO SERVER (PULSEAUDIO) ---
 setup_audio_server() {
     if ! command -v pulseaudio >/dev/null 2>&1; then
         pkg install pulseaudio -y >/dev/null 2>&1
@@ -278,7 +287,6 @@ setup_audio_server() {
     pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1
 }
 
-# --- FUNGSI LAUNCH GUI UBUNTU ---
 launch_ubuntu_gui() {
     local GUI_CANCELLED=0
     local RES_W="720"
@@ -291,7 +299,7 @@ launch_ubuntu_gui() {
     fi
 
     if ! is_termux_x11_installed; then
-        say_err "termux-x11 belum terpasang. Jalankan ulang script."
+        say_err "termux-x11 belum terpasang."
         return 1
     fi
 
@@ -382,7 +390,6 @@ WRAPEOF
     say_ok "Sesi GUI ditutup."
 }
 
-# --- FUNGSI KILL GUI UBUNTU ---
 kill_ubuntu_gui() {
     say_proc "Terminating GUI processes..."
     local found=0
@@ -399,7 +406,6 @@ kill_ubuntu_gui() {
     fi
 }
 
-# --- FUNGSI CEK SESI GUI AKTIF ---
 check_gui_session() {
     say_proc "Memeriksa sesi..."
     local x11_procs x11_count xfce_procs
@@ -428,7 +434,6 @@ check_gui_session() {
     fi
 }
 
-# --- FUNGSI QUICK DEV-TOOLS INSTALLER ---
 quick_devtools_installer() {
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
@@ -477,10 +482,9 @@ quick_devtools_installer() {
     done
 }
 
-# --- FUNGSI CHECK UPDATE MANUAL ---
 check_for_update() {
-    say_proc "Sinkronisasi ke GitHub..."
-    local tmp_file="$HOME/.nx_code_update_tmp.sh"
+    say_proc "Memeriksa pembaruan..."
+    local tmp_file="$NX_TEMP_DIR/.nx_code_update_tmp.sh"
     rm -f "$tmp_file"
 
     if ! curl --silent --max-time 15 --retry 2 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file"; then
@@ -489,13 +493,16 @@ check_for_update() {
         return 1
     fi
 
-    if diff -q "$tmp_file" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-        say_ok "Sistem sudah up-to-date."
+    local remote_version
+    remote_version=$(grep -m1 '^NX_CODE_VERSION=' "$tmp_file" | cut -d'"' -f2)
+
+    if [ -z "$remote_version" ] || [ "$remote_version" == "$NX_CODE_VERSION" ]; then
+        say_ok "Sistem sudah up-to-date ($NX_CODE_VERSION)."
         rm -f "$tmp_file"
         return 0
     fi
 
-    say_ok "Pembaruan tersedia!"
+    say_ok "Pembaruan tersedia: $remote_version (Saat ini: $NX_CODE_VERSION)"
     echo -ne "  ${CYAN}Unduh dan terapkan pembaruan sekarang? (y/n) ❯${NC} "
     read update_choice
 
@@ -511,7 +518,6 @@ check_for_update() {
     fi
 }
 
-# --- FUNGSI LIHAT LOG ERROR ---
 view_error_log() {
     while true; do
         hr
@@ -543,7 +549,6 @@ view_error_log() {
     done
 }
 
-# --- FUNGSI GANTI TEMA WARNA ---
 select_theme_menu() {
     while true; do
         hr
@@ -581,7 +586,6 @@ select_theme_menu() {
     done
 }
 
-# --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     while true; do
         animate_logo
@@ -626,20 +630,19 @@ show_shortcut_menu() {
     done
 }
 
-# ==============================================================================
-# HELPER: FUNGSI CEK UPDATE UNTUK UI
-# ==============================================================================
 run_ui_update_check() {
-    local tmp_chk="$TMPDIR/.nx_up_check.tmp"
+    local tmp_chk="$NX_TEMP_DIR/.nx_up_check.tmp"
     if curl --silent --max-time 5 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_chk" 2>/dev/null; then
-        if diff -q "$tmp_chk" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-            echo "up-to-date" > "$TMPDIR/.nx_up_status"
+        local remote_version
+        remote_version=$(grep -m1 '^NX_CODE_VERSION=' "$tmp_chk" | cut -d'"' -f2)
+        if [ -n "$remote_version" ] && [ "$remote_version" != "$NX_CODE_VERSION" ]; then
+            echo "update-available" > "$NX_TEMP_DIR/.nx_up_status"
         else
-            echo "update-available" > "$TMPDIR/.nx_up_status"
+            echo "up-to-date" > "$NX_TEMP_DIR/.nx_up_status"
         fi
         rm -f "$tmp_chk"
     else
-        echo "offline" > "$TMPDIR/.nx_up_status"
+        echo "offline" > "$NX_TEMP_DIR/.nx_up_status"
     fi
 }
 
@@ -680,7 +683,7 @@ if [ "$1" == "--ui-only" ]; then
     if [ "$TODAY" != "$LAST_CLEAN" ]; then
         (
             pkg clean -y
-            if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then rm -rf "${TMPDIR:?}"/* 2>/dev/null; fi
+            rm -rf "$NX_TEMP_DIR"/* 2>/dev/null
         ) > /dev/null 2>&1 &
         show_futuristic_progress "Flushing Cache" $!
         echo "$TODAY" > "$LAST_CLEAN_FILE"
@@ -689,8 +692,8 @@ if [ "$1" == "--ui-only" ]; then
 
     run_ui_update_check >/dev/null 2>&1
 
-    if [ -f "$TMPDIR/.nx_up_status" ]; then
-        st_res=$(cat "$TMPDIR/.nx_up_status")
+    if [ -f "$NX_TEMP_DIR/.nx_up_status" ]; then
+        st_res=$(cat "$NX_TEMP_DIR/.nx_up_status")
         if [ "$st_res" == "up-to-date" ]; then
             update_status="${NEON_GREEN}Up-to-Date${NC}"
         elif [ "$st_res" == "update-available" ]; then
@@ -698,7 +701,7 @@ if [ "$1" == "--ui-only" ]; then
         else
             update_status="${DIM}Offline${NC}"
         fi
-        rm -f "$TMPDIR/.nx_up_status"
+        rm -f "$NX_TEMP_DIR/.nx_up_status"
     else
         update_status="${DIM}Skipped${NC}"
     fi
@@ -715,7 +718,7 @@ if [ "$1" == "--ui-only" ]; then
 fi
 
 # ==============================================================================
-# MODE INSTALASI AWAL (SILENT & CLASSY)
+# MODE INSTALASI AWAL
 # ==============================================================================
 cyber_boot_sequence
 animate_logo
@@ -761,10 +764,7 @@ copy_self_to_home() {
     
     if [ ! -f "$0" ] || [ "$0" = "bash" ] || [ "$0" = "-bash" ]; then
         curl --silent --max-time 15 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$dest" 2>/dev/null
-        if [ -s "$dest" ]; then
-            chmod +x "$dest"
-            return 0
-        fi
+        [ -s "$dest" ] && chmod +x "$dest" && return 0
         return 1
     fi
 
@@ -822,7 +822,7 @@ EOF
     say_ok "Boot Sequence  : ${NEON_GREEN}Injected${NC}"
 fi
 
-(dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 0.5) 2>/dev/null &
+(dpkg -l | grep "^ii" > "$NX_TEMP_DIR/installed_pkgs.txt"; sleep 0.5) 2>/dev/null &
 show_futuristic_progress "Validating Subsystems" $!
 
 echo -e "\n  ${SUCCESS} ${NEON_GREEN}INSTALLATION COMPLETE${NC}"
