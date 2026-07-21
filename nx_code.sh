@@ -1,10 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# --- KONFIGURASI UPDATE (GANTI SESUAI REPO GITHUB KAMU) ---
-# Ganti USERNAME di bawah dengan username GitHub kamu sebelum publish/pakai fitur update.
+# --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
-# --- KONFIGURASI APP STORE (REPO KE-2, GANTI KALAU NAMA REPO BEDA) ---
+# --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
 NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/scripts"
 
@@ -38,10 +37,6 @@ NX_USER="nxuser"
 NX_LOG="$HOME/.nx_code_error.log"
 
 # --- MODE NON-INTERAKTIF UNTUK APT/DEBCONF ---
-# WAJIB: tanpa ini, paket seperti console-setup/keyboard-configuration bisa
-# memunculkan prompt tersembunyi (nanya resolusi, layout keyboard, dll) yang
-# membuat instalasi macet total menunggu input yang tak pernah datang,
-# karena output apt kita redirect ke log demi tampilan progress bar.
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
@@ -143,14 +138,6 @@ setup_nonroot_user() {
 }
 
 # --- FUNGSI PROGRESS: GAYA NATIVE PROOT-DISTRO ("[*] ..." + bar %) ---
-# Argumen ke-4 (opsional): total item yang diharapkan (mis. jumlah paket yang
-# akan diinstal, dari hasil `apt --dry-run`). Kalau diisi, ditampilkan bar
-# persentase ASLI (dihitung dari baris log yang sudah lewat / total), persis
-# gaya proot-distro waktu download Ubuntu: "[####------] 42%". Kalau tidak
-# diisi (progres tidak terukur, mis. "apt update"), fallback ke satu baris
-# status "[*] <aktivitas>..." yang di-refresh di tempat.
-# Riwayat step yang sudah selesai tetap numpuk ke bawah sebagai baris permanen
-# "[*] <label> selesai." — tidak pernah melebar ke samping / ke-wrap.
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -187,16 +174,16 @@ show_futuristic_progress() {
         fi
 
         if [ "$mode" == "live" ] && [ "$total" -gt 0 ]; then
-            # BAR PERSENTASE ASLI, dihitung dari progres paket sungguhan
+            # BAR PERSENTASE CYBERPUNK
             local percent=$(( done_count * 100 / total ))
             [ "$percent" -gt 100 ] && percent=100
             local bar_w=20
             [ "$cols" -lt 40 ] && bar_w=10
             local filled=$(( percent * bar_w / 100 ))
             local bar=""
-            for ((j=0; j<filled; j++)); do bar="${bar}#"; done
-            for ((j=filled; j<bar_w; j++)); do bar="${bar}-"; done
-            printf "\r\033[K${WHITE}[*]${NC} ${CYAN}[%s]${NC} ${NEON_PINK}%3d%%${NC}" "$bar" "$percent"
+            for ((j=0; j<filled; j++)); do bar="${bar}█"; done
+            for ((j=filled; j<bar_w; j++)); do bar="${bar}░"; done
+            printf "\r\033[K${NEON_PINK}[SYS]${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} | %s" "$bar" "$percent" "${activity:0:15}"
         elif [ "$mode" == "simple" ]; then
             local sp_char="${spinner:$((ticks % 4)):1}"
             printf "\r\033[K${WHITE}[*]${NC} %s %s" "$label" "$sp_char"
@@ -215,6 +202,24 @@ show_futuristic_progress() {
     echo -ne "\033[?25h"
 }
 
+# --- ANIMASI BOOTING CYBERPUNK ---
+cyber_boot_sequence() {
+    clear
+    local boot_logs=(
+        "CORE_KERNEL    : INITIATING MEMORY ALLOCATION..."
+        "SYS_CHK        : BYPASSING MAINFRAME ENCRYPTION... [OK]"
+        "NET_LINK       : ESTABLISHING SECURE TUNNEL... [OK]"
+        "INJECTOR       : PREPARING DEPLOYMENT VECTORS..."
+    )
+    echo -e "${NEON_PINK}>> WAKE_UP_PROTOCOL.SH INITIATED <<${NC}\n"
+    sleep 0.5
+    for log in "${boot_logs[@]}"; do
+        echo -e "${PURPLE}[*] ${CYAN}${log}${NC}"
+        sleep 0.4
+    done
+    echo -e "\n${NEON_GREEN}>> NEURAL LINK ESTABLISHED. SYSTEM WIDE OPEN. <<${NC}"
+    sleep 1
+}
 
 # --- ANIMASI BOOTING LOGO ---
 animate_logo() {
@@ -964,82 +969,74 @@ if [ "$1" == "--ui-only" ]; then
 fi
 
 # ==============================================================================
-# MODE INSTALASI AWAL
+# MODE INSTALASI AWAL (CYBERPUNK OPTIMIZED)
 # ==============================================================================
+cyber_boot_sequence
 animate_logo
 
-: > "$NX_STEP_LOG"
-(pkg update -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Updating Repositories..." $! "$NX_STEP_LOG"
+echo -e "${WHITE}>> DEPLOYING CORE DEPENDENCIES...${NC}\n"
 
+# OPTIMASI: Menggabungkan update dan instalasi paket Termux dasar dalam satu proses
 : > "$NX_STEP_LOG"
-(pkg upgrade -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Upgrading System Core..." $! "$NX_STEP_LOG"
+(
+    pkg update -y -o Dpkg::Options::="--force-confold" && \
+    pkg upgrade -y -o Dpkg::Options::="--force-confold" && \
+    pkg install proot-distro htop coreutils x11-repo -y -o Dpkg::Options::="--force-confold"
+) > "$NX_STEP_LOG" 2>&1 &
+show_futuristic_progress "Syncing Global Repos & Injecting Base Nodes" $! "$NX_STEP_LOG"
 
-: > "$NX_STEP_LOG"
-(pkg install proot-distro htop coreutils -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Deploying Hypervisor..." $! "$NX_STEP_LOG"
-
-: > "$NX_STEP_LOG"
-(pkg install x11-repo -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Adding X11 Repository..." $! "$NX_STEP_LOG"
-
+# Instalasi paket server X11
 : > "$NX_STEP_LOG"
 (pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Deploying X11 Display Server..." $! "$NX_STEP_LOG"
+show_futuristic_progress "Compiling X11 Display Subsystems" $! "$NX_STEP_LOG"
 
 if ! is_ubuntu_installed; then
-    say_proc "Mempersiapkan unduhan Ubuntu OS..."
+    say_proc "INITIALIZING OS VIRTUALIZATION..."
     proot-distro remove ubuntu > /dev/null 2>&1
-    say_hint "[!] System akan mengunduh Ubuntu secara live. Mohon tunggu..."
+    say_hint "[!] Downloading Ubuntu Core Image. Standby..."
     hr
     proot-distro install ubuntu
     hr
 fi
 
 (sleep 1) &
-show_futuristic_progress "Checking Hypervisor Distros..." $!
+show_futuristic_progress "Verifying Hypervisor Integrity" $!
 
+echo ""
 if is_ubuntu_installed; then
-    echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_GREEN}Installed & Ready${NC}"
+    echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_GREEN}Deployed & Online${NC}"
 else
-    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_PINK}Installation Failed${NC}"
+    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS           :${NC} ${NEON_PINK}Deployment Failed${NC}"
 fi
 
 if is_termux_x11_installed; then
-    echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Installed & Ready${NC}"
+    echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Deployed & Online${NC}"
 else
-    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Installation Failed${NC}"
+    echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Deployment Failed${NC}"
 fi
 echo ""
 
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
     local src=""
-
     if [ -n "$BASH_SOURCE" ] && [ -f "${BASH_SOURCE[0]}" ]; then
         src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
     elif [ -f "$0" ]; then
         src=$(realpath "$0" 2>/dev/null)
     fi
-
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
         cp "$src" "$dest"
         chmod +x "$dest"
         return 0
     fi
-
-    if [ ! -f "$dest" ]; then
-        return 1
-    fi
+    if [ ! -f "$dest" ]; then return 1; fi
     return 0
 }
 
 if copy_self_to_home; then
     chmod +x "$HOME/nx_code.sh" 2>/dev/null
 else
-    say_warn "PERINGATAN: Script dijalankan lewat pipe (mis. wget -qO- | bash) sehingga tidak bisa disalin otomatis ke \$HOME/nx_code.sh."
-    say_hint "    Silakan download file-nya dulu (mis. wget URL -O nx_code.sh) lalu jalankan: bash nx_code.sh"
+    say_warn "WARNING: Source injected via memory stream (pipe). Cannot auto-copy."
 fi
 
 if grep -q 'command rm -i "\$@"' "$HOME/.bashrc" 2>/dev/null; then
@@ -1058,7 +1055,7 @@ alias ls='ls --color=auto --group-directories-first'
 alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 
-PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
+PS1="\[\033[1;92m\]┌──(\[\033[1;95m\]NX_CODE\[\033[1;92m\])─[\[\033[0;36m\]\w\[\033[1;92m\]]\n└─> \[\033[0m\]"
 
 clear() {
     command clear
@@ -1078,36 +1075,37 @@ rm() {
 
 command_not_found_handle() {
     local cmd="$1"
-    echo -e "\033[1;95m[!] ALERT: UNAUTHORIZED COMMAND '${cmd}' DETECTED.\033[0m"
-    echo -e "\033[0;35m[?] SYSTEM HINT: Check your syntax or inject modules first.\033[0m"
+    echo -e "\033[1;91m[CRITICAL] UNAUTHORIZED SYNTAX: '${cmd}'\033[0m"
+    echo -e "\033[0;36m[SYS] Module missing or corrupted. Verify parameters.\033[0m"
     return 127
 }
 # ---------------------------
 EOF
-    say_ok "Auto-Startup Profile     : ${NEON_GREEN}Injected Successfully${NC}"
+    say_ok "Auto-Startup Override    : ${NEON_GREEN}Injected Successfully${NC}"
 else
-    echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${CYAN}Already Configured${NC}"
+    echo -e "${SUCCESS} ${WHITE}Auto-Startup Override    :${NC} ${CYAN}Already Configured${NC}"
 fi
 
 (dpkg -l | grep "^ii" > "$TMPDIR/installed_pkgs.txt"; sleep 1) 2>/dev/null &
-show_futuristic_progress "Scanning Modules..." $!
+show_futuristic_progress "Scanning Active Modules" $!
 
 if [ -f "$TMPDIR/installed_pkgs.txt" ]; then
     total_pkgs=$(wc -l < "$TMPDIR/installed_pkgs.txt")
-    say_hint "--> Total paket terdeteksi: ${NEON_GREEN}${total_pkgs} paket${NC}"
-    echo -e "${CYAN}--> Menampilkan beberapa core modul yang aktif:${NC}"
-    awk '{print "    [+] " $2 " (v" $3 ")"}' "$TMPDIR/installed_pkgs.txt" | head -n 5
+    echo -e "\n${PURPLE}>> DATABASE SCAN YIELD: ${NEON_GREEN}${total_pkgs} MODULES ACTIVE${NC}"
+    echo -e "${CYAN}>> EXTRACTING CORE LOADOUT:${NC}"
+    awk '{print "    [■] " $2 " (v" $3 ")"}' "$TMPDIR/installed_pkgs.txt" | head -n 4
+    echo -e "    ${PURPLE}[■] ...and other background dependencies${NC}"
     rm -f "$TMPDIR/installed_pkgs.txt"
 fi
 
-echo -e "${NEON_GREEN}[Complete]${NC}"
+echo -e "\n${NEON_GREEN}[INSTALLATION COMPLETE]${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
-echo -e "${NEON_GREEN}          SYSTEM INITIALIZED. NX_CODE ACTIVE.          ${NC}"
+echo -e "${NEON_GREEN}       SYSTEM INITIALIZED. WELCOME TO NX_CODE.        ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
 
-echo -e "${WHITE}Menu :${NC}"
-echo -e " ${PURPLE}[1]${NC} ${WHITE}Restart${NC}"
-echo -e " ${PURPLE}[2]${NC} ${WHITE}Exit${NC}"
+echo -e "${WHITE}REBOOT REQUIRED:${NC}"
+echo -e " ${PURPLE}[1]${NC} ${WHITE}Initiate Soft Reboot (Rekomendasi)${NC}"
+echo -e " ${PURPLE}[2]${NC} ${WHITE}Exit Terminal${NC}"
 echo -ne "${CYAN}[?] Pilihan:${NC} "
 read final_choice
 
