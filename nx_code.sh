@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.11"
+NX_CODE_VERSION="v1.0.12"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -777,11 +777,10 @@ if [ "$1" == "--ui-only" ]; then
         clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
-    # Menjalankan pengecekan update secara senyap di latar belakang tanpa mencetak progress bar teks ganda
+    # Menjalankan pengecekan update secara aman di dalam fungsi
     run_ui_update_check >/dev/null 2>&1
 
     if [ -f "$TMPDIR/.nx_up_status" ]; then
-        local st_res
         st_res=$(cat "$TMPDIR/.nx_up_status")
         if [ "$st_res" == "up-to-date" ]; then
             update_status="${NEON_GREEN}Up-to-Date${NC}"
