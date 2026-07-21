@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.7-premium"
+NX_CODE_VERSION="v1.0.8"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -743,7 +743,6 @@ if [ "$1" == "--ui-only" ]; then
         clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
-    # Pengecekan status pembaruan (mode informasi / non-auto apply)
     (
         local tmp_chk="$TMPDIR/.nx_up_check.tmp"
         if curl --silent --max-time 5 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_chk" 2>/dev/null; then
