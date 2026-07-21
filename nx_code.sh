@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.8"
+NX_CODE_VERSION="v1.0.9"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -233,7 +233,7 @@ choose_resolution() {
     esac
 }
 
-# --- FUNGSI TULIS SCRIPT STARTUP GUI KE DALAM UBUNTU ---
+# --- FUNGSI TULIS SCRIPT STARTUP GUI KE DALAM UBUNTU (DENGAN AUDIO BRIDGE) ---
 write_gui_startup_script() {
     local target_w="$1"
     local target_h="$2"
@@ -242,6 +242,7 @@ write_gui_startup_script() {
 #!/bin/bash
 export DISPLAY=:2
 export ELECTRON_DISABLE_SANDBOX=true
+export PULSE_SERVER=tcp:127.0.0.1:4713
 sleep 2
 OUT=\$(xrandr | grep " connected" | head -n1 | awk '{print \$1}')
 if [ -n "$target_w" ]; then
@@ -269,6 +270,19 @@ setup_no_sandbox_fix() {
     done
 }
 
+# --- FUNGSI INISIALISASI AUDIO SERVER (PULSEAUDIO) ---
+setup_audio_server() {
+    if ! command -v pulseaudio >/dev/null 2>&1; then
+        pkg install pulseaudio -y >/dev/null 2>&1
+    fi
+    if [ -f "$PREFIX/etc/pulse/default.pa" ]; then
+        if ! grep -q "module-native-protocol-tcp" "$PREFIX/etc/pulse/default.pa"; then
+            echo "load-module module-native-protocol-tcp auth-anonymous=1" >> "$PREFIX/etc/pulse/default.pa"
+        fi
+    fi
+    pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1
+}
+
 # --- FUNGSI LAUNCH GUI UBUNTU ---
 launch_ubuntu_gui() {
     local GUI_CANCELLED=0
@@ -286,6 +300,9 @@ launch_ubuntu_gui() {
         return 1
     fi
 
+    # Menyalakan server audio otomatis sebelum GUI jalan
+    setup_audio_server
+
     if ! is_xfce4_installed; then
         say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
         log_section "INSTALL XFCE4"
@@ -296,11 +313,11 @@ launch_ubuntu_gui() {
         cat "$NX_STEP_LOG" >> "$NX_LOG"
 
         local xfce_total
-        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$xfce_total" ] && xfce_total=0
 
         : > "$NX_STEP_LOG"
-        (ux "apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils -y" > "$NX_STEP_LOG" 2>&1) &
         local xfce_pid=$!
         show_futuristic_progress "Installing Desktop" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
@@ -338,7 +355,7 @@ launch_ubuntu_gui() {
     pkill -f "termux-x11" >/dev/null 2>&1
     sleep 1
 
-    say_proc "Menyalakan Display Server (:2)..."
+    say_proc "Menyalakan Display & Audio Server (:2)..."
 
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
@@ -378,6 +395,7 @@ kill_ubuntu_gui() {
 
     if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
     if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
+    if pkill -f "pulseaudio" >/dev/null 2>&1; then found=1; fi
 
     sleep 1
     if [ "$found" -eq 1 ]; then
@@ -796,7 +814,7 @@ say_proc "Injecting Base Dependencies..."
 (
     pkg update -y -o Dpkg::Options::="--force-confold" && \
     pkg upgrade -y -o Dpkg::Options::="--force-confold" && \
-    pkg install proot-distro htop coreutils x11-repo curl ncurses-utils -y -o Dpkg::Options::="--force-confold"
+    pkg install proot-distro htop coreutils x11-repo curl ncurses-utils pulseaudio -y -o Dpkg::Options::="--force-confold"
 ) > "$NX_STEP_LOG" 2>&1 &
 show_futuristic_progress "Configuring Repositories" $! "$NX_STEP_LOG"
 
