@@ -142,32 +142,30 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS: GAYA STACKED INSTALLER (bukan bar horizontal) ---
-# Cuma SATU baris yang hidup (paling bawah): spinner + aksi yang lagi
-# berjalan (mis. "Unpacking xfce4..."). Begitu proses selesai, baris itu
-# dikunci jadi riwayat permanen "[DONE] <label>" dan turun ke baris baru
-# untuk step berikutnya — jadi hasilnya numpuk KE BAWAH secara rapi seperti
-# log installer biasa, bukan bar yang melebar ke samping dan ter-wrap.
-#   [DONE] Update
-#   [DONE] Upgrade
-#   [DONE] Adding X11
-#   [/] Unpacking libxcb...        <- baris ini saja yang berubah-ubah
+# --- FUNGSI PROGRESS: GAYA NATIVE PROOT-DISTRO ("[*] ..." + bar %) ---
+# Argumen ke-4 (opsional): total item yang diharapkan (mis. jumlah paket yang
+# akan diinstal, dari hasil `apt --dry-run`). Kalau diisi, ditampilkan bar
+# persentase ASLI (dihitung dari baris log yang sudah lewat / total), persis
+# gaya proot-distro waktu download Ubuntu: "[####------] 42%". Kalau tidak
+# diisi (progres tidak terukur, mis. "apt update"), fallback ke satu baris
+# status "[*] <aktivitas>..." yang di-refresh di tempat.
+# Riwayat step yang sudah selesai tetap numpuk ke bawah sebagai baris permanen
+# "[*] <label> selesai." — tidak pernah melebar ke samping / ke-wrap.
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
     local logfile="${3:-}"
+    local total="${4:-0}"
     local mode="${NX_PROGRESS_MODE:-live}"
-    local ticks=0
     local label="$message"
     local spinner="|/-\\"
-    local activity=""
+    local ticks=0
 
     # Mode "log": tanpa animasi sama sekali, cuma cetak sekali di awal & akhir.
-    # Paling aman untuk terminal yang render-nya masih bermasalah.
     if [ "$mode" == "log" ]; then
-        echo -e "${PURPLE}[•]${NC} ${CYAN}${label}...${NC}"
+        echo -e "${WHITE}[*]${NC} ${label}..."
         wait "$pid" 2>/dev/null
-        echo -e "${NEON_GREEN}[DONE]${NC} ${WHITE}${label}${NC}"
+        echo -e "${WHITE}[*]${NC} ${label} ${NEON_GREEN}selesai.${NC}"
         return 0
     fi
 
@@ -177,29 +175,46 @@ show_futuristic_progress() {
         cols=$(stty size 2>/dev/null | awk '{print $2}')
         [ -z "$cols" ] && cols=40
 
-        local sp_char="${spinner:$((ticks % 4)):1}"
-
-        activity="$label"
-        if [ "$mode" == "live" ] && [ -n "$logfile" ] && [ -s "$logfile" ]; then
+        local activity="$label"
+        local done_count=0
+        if [ -n "$logfile" ] && [ -s "$logfile" ]; then
             local candidate
             candidate=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]')
             [ -n "$candidate" ] && activity="$candidate"
+            if [ "$total" -gt 0 ]; then
+                done_count=$(grep -Ec '^(Unpacking|Setting up|Preparing to unpack)' "$logfile" 2>/dev/null)
+            fi
         fi
 
-        # potong teks aktivitas biar muat dalam satu baris, apapun lebar layarnya
-        local budget=$(( cols - 6 ))
-        [ "$budget" -lt 5 ] && budget=5
-        activity="${activity:0:$budget}"
-
-        printf "\r\033[K${PURPLE}[${NEON_PINK}%s${PURPLE}]${NC} ${WHITE}%s${NC}" "$sp_char" "$activity"
+        if [ "$mode" == "live" ] && [ "$total" -gt 0 ]; then
+            # BAR PERSENTASE ASLI, dihitung dari progres paket sungguhan
+            local percent=$(( done_count * 100 / total ))
+            [ "$percent" -gt 100 ] && percent=100
+            local bar_w=20
+            [ "$cols" -lt 40 ] && bar_w=10
+            local filled=$(( percent * bar_w / 100 ))
+            local bar=""
+            for ((j=0; j<filled; j++)); do bar="${bar}#"; done
+            for ((j=filled; j<bar_w; j++)); do bar="${bar}-"; done
+            printf "\r\033[K${WHITE}[*]${NC} ${CYAN}[%s]${NC} ${NEON_PINK}%3d%%${NC}" "$bar" "$percent"
+        elif [ "$mode" == "simple" ]; then
+            local sp_char="${spinner:$((ticks % 4)):1}"
+            printf "\r\033[K${WHITE}[*]${NC} %s %s" "$label" "$sp_char"
+        else
+            local budget=$(( cols - 6 ))
+            [ "$budget" -lt 5 ] && budget=5
+            activity="${activity:0:$budget}"
+            printf "\r\033[K${WHITE}[*]${NC} %s" "$activity"
+        fi
 
         sleep 0.12
         ((ticks++))
     done
 
-    printf "\r\033[K${NEON_GREEN}[DONE]${NC} ${WHITE}%s${NC}\n" "$label"
+    printf "\r\033[K${WHITE}[*]${NC} %s ${NEON_GREEN}selesai.${NC}\n" "$label"
     echo -ne "\033[?25h"
 }
+
 
 # --- ANIMASI BOOTING LOGO ---
 animate_logo() {
@@ -305,10 +320,21 @@ launch_ubuntu_gui() {
         say_proc "XFCE4 belum terpasang di Ubuntu. Menginstal sekarang (sekali saja)..."
         say_hint "[!] Proses ini bisa memakan waktu cukup lama tergantung koneksi."
         log_section "INSTALL XFCE4"
+
         : > "$NX_STEP_LOG"
-        (ux "apt update && apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
+        show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
+        cat "$NX_STEP_LOG" >> "$NX_LOG"
+
+        # Hitung total paket sungguhan (dry-run) biar bar persentase valid, bukan tebakan
+        local xfce_total
+        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        [ -z "$xfce_total" ] && xfce_total=0
+
+        : > "$NX_STEP_LOG"
+        (ux "apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" > "$NX_STEP_LOG" 2>&1) &
         local xfce_pid=$!
-        show_futuristic_progress "Installing XFCE4..." "$xfce_pid" "$NX_STEP_LOG"
+        show_futuristic_progress "Installing XFCE4" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
         if ! is_xfce4_installed; then
             say_err "Instalasi XFCE4 gagal. Cek log lengkap di menu [8] Log error."
@@ -483,10 +509,20 @@ quick_devtools_installer() {
 
         say_proc "Menginstal: ${pkgs}..."
         log_section "DEV-TOOLS INSTALL ($pkgs)"
+
         : > "$NX_STEP_LOG"
-        (ux "apt update && apt install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
+        show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
+        cat "$NX_STEP_LOG" >> "$NX_LOG"
+
+        local dev_total
+        dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        [ -z "$dev_total" ] && dev_total=0
+
+        : > "$NX_STEP_LOG"
+        (ux "apt install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
         local dev_pid=$!
-        show_futuristic_progress "Installing packages..." "$dev_pid" "$NX_STEP_LOG"
+        show_futuristic_progress "Installing packages" "$dev_pid" "$NX_STEP_LOG" "$dev_total"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
         say_ok "Selesai menginstal."
     done
@@ -617,7 +653,7 @@ select_theme_menu() {
 # --- FUNGSI GANTI MODE PROGRESS BAR ---
 select_progress_menu() {
     local labels=(
-        "Live (spinner + cuplikan aksi yang lagi berjalan)"
+        "Live (gaya proot-distro: [*] status + bar % asli kalau tersedia)"
         "Simple (spinner saja, tanpa teks aksi — paling stabil)"
         "Log (tanpa animasi, cuma cetak status mulai/selesai — paling aman)"
     )
