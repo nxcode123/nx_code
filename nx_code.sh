@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.9"
+NX_CODE_VERSION="v1.0.10"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -300,7 +300,6 @@ launch_ubuntu_gui() {
         return 1
     fi
 
-    # Menyalakan server audio otomatis sebelum GUI jalan
     setup_audio_server
 
     if ! is_xfce4_installed; then
@@ -718,6 +717,23 @@ show_shortcut_menu() {
 }
 
 # ==============================================================================
+# HELPER: FUNGSI CEK UPDATE UNTUK UI
+# ==============================================================================
+run_ui_update_check() {
+    local tmp_chk="$TMPDIR/.nx_up_check.tmp"
+    if curl --silent --max-time 5 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_chk" 2>/dev/null; then
+        if diff -q "$tmp_chk" "$HOME/nx_code.sh" >/dev/null 2>&1; then
+            echo "up-to-date" > "$TMPDIR/.nx_up_status"
+        else
+            echo "update-available" > "$TMPDIR/.nx_up_status"
+        fi
+        rm -f "$tmp_chk"
+    else
+        echo "offline" > "$TMPDIR/.nx_up_status"
+    fi
+}
+
+# ==============================================================================
 # ENTRY POINTS
 # ==============================================================================
 if [ "$1" == "--logo-only" ]; then
@@ -761,19 +777,8 @@ if [ "$1" == "--ui-only" ]; then
         clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
-    (
-        local tmp_chk="$TMPDIR/.nx_up_check.tmp"
-        if curl --silent --max-time 5 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_chk" 2>/dev/null; then
-            if diff -q "$tmp_chk" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-                echo "up-to-date" > "$TMPDIR/.nx_up_status"
-            else
-                echo "update-available" > "$TMPDIR/.nx_up_status"
-            fi
-            rm -f "$tmp_chk"
-        else
-            echo "offline" > "$TMPDIR/.nx_up_status"
-        fi
-    ) &
+    # Menjalankan fungsi pengecekan update agar aman dari error deklarasi local
+    run_ui_update_check &
     show_futuristic_progress "Check Update" $!
 
     if [ -f "$TMPDIR/.nx_up_status" ]; then
