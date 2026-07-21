@@ -18,6 +18,17 @@ NX_USER="nxuser"
 # --- LOG ERROR (biar output yang kecepetan lewat bisa dibaca ulang nanti) ---
 NX_LOG="$HOME/.nx_code_error.log"
 
+# --- MODE NON-INTERAKTIF UNTUK APT/DEBCONF ---
+# WAJIB: tanpa ini, paket seperti console-setup/keyboard-configuration bisa
+# memunculkan prompt tersembunyi (nanya resolusi, layout keyboard, dll) yang
+# membuat instalasi macet total menunggu input yang tak pernah datang,
+# karena output apt kita redirect ke log demi tampilan progress bar.
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# File log sementara untuk menampilkan potongan output real-time di progress bar
+NX_STEP_LOG="${TMPDIR:-/tmp}/.nx_step.log"
+
 # ==============================================================================
 # HELPER: TEMA WARNA
 # ==============================================================================
@@ -113,11 +124,17 @@ setup_nonroot_user() {
 }
 
 # --- FUNGSI PROGRESS BAR DINAMIS MINIMALIS ---
+# Argumen ke-3 (opsional): path file log yang sedang ditulis proses background.
+# Kalau diisi, baris terakhir dari log itu ditampilkan di sebelah bar
+# (mis. "Unpacking xfce4...", "Setting up nodejs..."), supaya user tahu
+# prosesnya benar-benar jalan dan bukan macet diam-diam.
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
+    local logfile="${3:-}"
     local ticks=0
     local elapsed=0
+    local last_line=""
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
@@ -133,14 +150,23 @@ show_futuristic_progress() {
         for ((j=fill; j<bar_size; j++)); do bar="${bar} "; done
 
         elapsed=$((ticks / 5))
-        printf "\r${PROCESS} %-25s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE} (%ds)${NC}" "$message" "$bar" "$elapsed"
+
+        if [ -n "$logfile" ] && [ -s "$logfile" ]; then
+            last_line=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]' | cut -c1-34)
+        fi
+
+        if [ -n "$last_line" ]; then
+            printf "\r\033[K${PROCESS} %-22s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC} ${WHITE}%s${NC}" "$message" "$bar" "$elapsed" "$last_line"
+        else
+            printf "\r\033[K${PROCESS} %-22s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE}(%ds)${NC}" "$message" "$bar" "$elapsed"
+        fi
 
         sleep 0.2
         ((ticks++))
     done
 
     elapsed=$((ticks / 5))
-    printf "\r\033[K${SUCCESS} ${WHITE}%-25s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$message" "$elapsed"
+    printf "\r\033[K${SUCCESS} ${WHITE}%-22s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$message" "$elapsed"
     echo -ne "\033[?25h"
 }
 
@@ -248,7 +274,11 @@ launch_ubuntu_gui() {
         say_proc "XFCE4 belum terpasang di Ubuntu. Menginstal sekarang (sekali saja)..."
         say_hint "[!] Proses ini bisa memakan waktu cukup lama tergantung koneksi."
         log_section "INSTALL XFCE4"
-        ux "apt update && apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" 2>&1 | tee -a "$NX_LOG"
+        : > "$NX_STEP_LOG"
+        (ux "apt update && apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo -y" > "$NX_STEP_LOG" 2>&1) &
+        local xfce_pid=$!
+        show_futuristic_progress "Installing XFCE4..." "$xfce_pid" "$NX_STEP_LOG"
+        cat "$NX_STEP_LOG" >> "$NX_LOG"
         if ! is_xfce4_installed; then
             say_err "Instalasi XFCE4 gagal. Cek log lengkap di menu [8] Log error."
             return 1
@@ -422,7 +452,11 @@ quick_devtools_installer() {
 
         say_proc "Menginstal: ${pkgs}..."
         log_section "DEV-TOOLS INSTALL ($pkgs)"
-        ux "apt update && apt install -y $pkgs" 2>&1 | tee -a "$NX_LOG"
+        : > "$NX_STEP_LOG"
+        (ux "apt update && apt install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
+        local dev_pid=$!
+        show_futuristic_progress "Installing packages..." "$dev_pid" "$NX_STEP_LOG"
+        cat "$NX_STEP_LOG" >> "$NX_LOG"
         say_ok "Selesai menginstal."
     done
 }
@@ -822,20 +856,25 @@ fi
 # ==============================================================================
 animate_logo
 
-(pkg update -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
-show_futuristic_progress "Updating Repositories..." $!
+: > "$NX_STEP_LOG"
+(pkg update -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "Updating Repositories..." $! "$NX_STEP_LOG"
 
-(pkg upgrade -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
-show_futuristic_progress "Upgrading System Core..." $!
+: > "$NX_STEP_LOG"
+(pkg upgrade -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "Upgrading System Core..." $! "$NX_STEP_LOG"
 
-(pkg install proot-distro htop coreutils -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
-show_futuristic_progress "Deploying Hypervisor..." $!
+: > "$NX_STEP_LOG"
+(pkg install proot-distro htop coreutils -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "Deploying Hypervisor..." $! "$NX_STEP_LOG"
 
-(pkg install x11-repo -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
-show_futuristic_progress "Adding X11 Repository..." $!
+: > "$NX_STEP_LOG"
+(pkg install x11-repo -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "Adding X11 Repository..." $! "$NX_STEP_LOG"
 
-(pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold") > /dev/null 2>&1 &
-show_futuristic_progress "Deploying X11 Display Server..." $!
+: > "$NX_STEP_LOG"
+(pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "Deploying X11 Display Server..." $! "$NX_STEP_LOG"
 
 if ! is_ubuntu_installed; then
     say_proc "Mempersiapkan unduhan Ubuntu OS..."
