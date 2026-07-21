@@ -2,11 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.15"
-
-# --- KONFIGURASI APP STORE
-NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
-NX_APPS_SCRIPTS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/scripts"
+NX_CODE_VERSION="v1.0.16"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -98,7 +94,6 @@ is_termux_x11_installed()  { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed()       { ux_quiet "command -v startxfce4"; }
 is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
-is_safe_filename()         { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
 
 setup_nonroot_user() {
     ux "
@@ -586,111 +581,6 @@ select_theme_menu() {
     done
 }
 
-# --- FUNGSI APP STORE (DENGAN KONFIRMASI INSTALASI Y/N) ---
-app_store_menu() {
-    if ! is_ubuntu_installed; then
-        say_err "Ubuntu OS belum terinstal."
-        return 1
-    fi
-
-    local manifest="$HOME/.nx_apps_manifest.tmp"
-
-    while true; do
-        if [ ! -f "$manifest" ]; then
-            say_proc "Menghubungkan ke App Repository..."
-            if ! curl --silent --max-time 15 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest"; then
-                say_err "Koneksi ke App Store gagal."
-                return 1
-            fi
-            sed -i 's/\r$//' "$manifest" 2>/dev/null
-        fi
-
-        local names=() scripts=()
-        while IFS='|' read -r a_name a_script a_rest; do
-            [ -z "$a_name" ] && continue
-            if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then continue; fi
-            names+=("$a_name")
-            scripts+=("$a_script")
-        done < "$manifest"
-
-        hr
-        echo -e "  ${WHITE}SOFTWARE CENTER${NC}"
-        for i in "${!names[@]}"; do
-            printf "  ${PURPLE}[%d]${NC} ${WHITE}%s${NC}\n" "$((i+1))" "${names[$i]}"
-        done
-        echo -e "  ${PURPLE}[R]${NC} ${WHITE}Refresh Repository${NC}"
-        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
-        hr
-        echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read app_choice
-
-        if [ "$app_choice" == "0" ]; then
-            rm -f "$manifest"
-            break
-        elif [ "$app_choice" == "r" ] || [ "$app_choice" == "R" ]; then
-            say_proc "Memperbarui daftar aplikasi dari server..."
-            rm -f "$manifest"
-            sleep 1
-            continue
-        elif ! [[ "$app_choice" =~ ^[0-9]+$ ]]; then
-            say_warn "Pilihan tidak valid."
-            sleep 1
-            continue
-        fi
-
-        local idx=$((app_choice - 1))
-        if [ -z "${names[$idx]:-}" ]; then
-            say_warn "Nomor aplikasi tidak terdaftar."
-            sleep 1
-            continue
-        fi
-
-        # --- KONFIRMASI INSTALASI ---
-        echo ""
-        echo -ne "  ${CYAN}Install ${WHITE}${names[$idx]}${CYAN}? (y/n) ❯${NC} "
-        read confirm_install
-        
-        if [[ ! "$confirm_install" =~ ^[Yy]$ ]]; then
-            say_hint "Instalasi ${names[$idx]} dibatalkan."
-            sleep 1
-            continue
-        fi
-        # ----------------------------
-
-        say_proc "Mengunduh ${names[$idx]}..."
-        log_section "APP INSTALL: ${names[$idx]}"
-
-        local target_url="$NX_APPS_SCRIPTS_BASE_URL/${scripts[$idx]}"
-        local tmp_script="$HOME/.tmp_install_$(basename "${scripts[$idx]}")"
-
-        if curl --silent --max-time 30 -fsSL "$target_url" -o "$tmp_script"; then
-            if [ -s "$tmp_script" ]; then
-                if ! bash -n "$tmp_script"; then
-                    say_err "Syntax error pada script yang diunduh. Batal."
-                    rm -f "$tmp_script"
-                    continue
-                fi
-
-                say_proc "Menjalankan proses instalasi..."
-                proot-distro login ubuntu -- bash < "$tmp_script" 2>&1 | tee -a "$NX_LOG"
-
-                if [ "${PIPESTATUS[0]}" -eq 0 ]; then
-                    say_ok "${names[$idx]} sukses diinstal."
-                else
-                    say_err "Gagal. Cek log."
-                fi
-            else
-                say_err "Script kosong / URL mati."
-            fi
-        else
-            say_err "Gagal mengunduh."
-        fi
-        rm -f "$tmp_script"
-        echo -ne "\n  ${DIM}Tekan Enter untuk kembali ke App Store...${NC}"
-        read
-    done
-}
-
 # --- FUNGSI PANEL MENU SHORTCUT ---
 show_shortcut_menu() {
     while true; do
@@ -705,8 +595,7 @@ show_shortcut_menu() {
         print_menu_item "6"  "System Monitor (HTop)"
         print_menu_item "7"  "System Update"
         print_menu_item "8"  "Diagnostic Logs"
-        print_menu_item "9"  "Software Center (App Store)"
-        print_menu_item "10" "Pengaturan Tema Visual"
+        print_menu_item "9"  "Pengaturan Tema Visual"
         echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
         print_menu_item "0"  "Tutup Panel"
         echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
@@ -730,8 +619,7 @@ show_shortcut_menu() {
             6) htop ;;
             7) check_for_update; sleep 1 ;;
             8) view_error_log; sleep 1 ;;
-            9) app_store_menu; sleep 1 ;;
-            10) select_theme_menu; sleep 1 ;;
+            9) select_theme_menu; sleep 1 ;;
             0) echo -e "\n  ${SUCCESS} Disconnected.\n"; break ;;
             *) echo -e "\n  ${NEON_PINK}✖ Invalid syntax.${NC}"; sleep 1 ;;
         esac
