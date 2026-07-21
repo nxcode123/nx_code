@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.12"
+NX_CODE_VERSION="v1.0.15"
 
 # --- KONFIGURASI APP STORE
 NX_APPS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code_app/main/apps.list"
@@ -586,56 +586,76 @@ select_theme_menu() {
     done
 }
 
-# --- FUNGSI APP STORE ---
+# --- FUNGSI APP STORE (DENGAN KONFIRMASI INSTALASI Y/N) ---
 app_store_menu() {
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum terinstal."
         return 1
     fi
 
-    say_proc "Menghubungkan ke App Repository..."
     local manifest="$HOME/.nx_apps_manifest.tmp"
-    rm -f "$manifest"
-
-    if ! curl --silent --max-time 15 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest"; then
-        say_err "Koneksi ke App Store gagal."
-        return 1
-    fi
-
-    sed -i 's/\r$//' "$manifest" 2>/dev/null
-
-    local names=() scripts=()
-    while IFS='|' read -r a_name a_script a_rest; do
-        [ -z "$a_name" ] && continue
-        if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then continue; fi
-        names+=("$a_name")
-        scripts+=("$a_script")
-    done < "$manifest"
-    rm -f "$manifest"
-
-    if [ "${#names[@]}" -eq 0 ]; then
-        say_err "Repositori kosong."
-        return 1
-    fi
 
     while true; do
+        if [ ! -f "$manifest" ]; then
+            say_proc "Menghubungkan ke App Repository..."
+            if ! curl --silent --max-time 15 -fsSL "$NX_APPS_MANIFEST_URL" -o "$manifest"; then
+                say_err "Koneksi ke App Store gagal."
+                return 1
+            fi
+            sed -i 's/\r$//' "$manifest" 2>/dev/null
+        fi
+
+        local names=() scripts=()
+        while IFS='|' read -r a_name a_script a_rest; do
+            [ -z "$a_name" ] && continue
+            if [ -n "$a_script" ] && ! is_safe_filename "$a_script"; then continue; fi
+            names+=("$a_name")
+            scripts+=("$a_script")
+        done < "$manifest"
+
         hr
         echo -e "  ${WHITE}SOFTWARE CENTER${NC}"
         for i in "${!names[@]}"; do
             printf "  ${PURPLE}[%d]${NC} ${WHITE}%s${NC}\n" "$((i+1))" "${names[$i]}"
         done
+        echo -e "  ${PURPLE}[R]${NC} ${WHITE}Refresh Repository${NC}"
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
         read app_choice
 
-        if [ "$app_choice" == "0" ]; then break; fi
+        if [ "$app_choice" == "0" ]; then
+            rm -f "$manifest"
+            break
+        elif [ "$app_choice" == "r" ] || [ "$app_choice" == "R" ]; then
+            say_proc "Memperbarui daftar aplikasi dari server..."
+            rm -f "$manifest"
+            sleep 1
+            continue
+        elif ! [[ "$app_choice" =~ ^[0-9]+$ ]]; then
+            say_warn "Pilihan tidak valid."
+            sleep 1
+            continue
+        fi
 
         local idx=$((app_choice - 1))
         if [ -z "${names[$idx]:-}" ]; then
-            say_warn "Tidak valid."
+            say_warn "Nomor aplikasi tidak terdaftar."
+            sleep 1
             continue
         fi
+
+        # --- KONFIRMASI INSTALASI ---
+        echo ""
+        echo -ne "  ${CYAN}Install ${WHITE}${names[$idx]}${CYAN}? (y/n) ❯${NC} "
+        read confirm_install
+        
+        if [[ ! "$confirm_install" =~ ^[Yy]$ ]]; then
+            say_hint "Instalasi ${names[$idx]} dibatalkan."
+            sleep 1
+            continue
+        fi
+        # ----------------------------
 
         say_proc "Mengunduh ${names[$idx]}..."
         log_section "APP INSTALL: ${names[$idx]}"
@@ -666,6 +686,8 @@ app_store_menu() {
             say_err "Gagal mengunduh."
         fi
         rm -f "$tmp_script"
+        echo -ne "\n  ${DIM}Tekan Enter untuk kembali ke App Store...${NC}"
+        read
     done
 }
 
@@ -777,7 +799,6 @@ if [ "$1" == "--ui-only" ]; then
         clean_status="${NEON_GREEN}Cleaned${NC}"
     fi
 
-    # Menjalankan pengecekan update secara aman di dalam fungsi
     run_ui_update_check >/dev/null 2>&1
 
     if [ -f "$TMPDIR/.nx_up_status" ]; then
