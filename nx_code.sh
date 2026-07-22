@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.18"
+NX_CODE_VERSION="v1.0.19"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -112,7 +112,7 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS AMAN KURSOR ---
+# --- FUNGSI PROGRESS AMAN KURSOR & ANTI-STUCK ESCAPE SEQUENCE ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -129,10 +129,11 @@ show_futuristic_progress() {
         local done_count=0
         if [ -n "$logfile" ] && [ -s "$logfile" ]; then
             local candidate
-            candidate=$(tail -n 1 "$logfile" 2>/dev/null | tr -cd '[:print:]')
+            # Membersihkan ANSI escape sequences agar teks log bersih dari sampah terminal
+            candidate=$(tail -n 1 "$logfile" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[JKmsu]//g' | tr -cd '[:print:]')
             [ -n "$candidate" ] && activity="$candidate"
             if [ "$total" -gt 0 ]; then
-                done_count=$(grep -Ec '^(Unpacking|Setting up|Preparing to unpack)' "$logfile" 2>/dev/null)
+                done_count=$(grep -Ec '^(Unpacking|Setting up|Preparing to unpack|Get:|Hit:)' "$logfile" 2>/dev/null)
             fi
         fi
 
@@ -218,7 +219,6 @@ choose_resolution() {
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 local w="${BASH_REMATCH[1]}"
                 local h="${BASH_REMATCH[2]}"
-                # Validasi batas wajar resolusi layar HP/Tablet
                 if [ "$w" -ge 400 ] && [ "$w" -le 7680 ] && [ "$h" -ge 400 ] && [ "$h" -le 4320 ]; then
                     RES_W="$w"
                     RES_H="$h"
@@ -310,7 +310,7 @@ launch_ubuntu_gui() {
         log_section "INSTALL XFCE4"
 
         : > "$NX_STEP_LOG"
-        (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt-get update -y" > "$NX_STEP_LOG" 2>&1) &
         show_futuristic_progress "Updating repos" $! "$NX_STEP_LOG"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
 
@@ -319,7 +319,7 @@ launch_ubuntu_gui() {
         [ -z "$xfce_total" ] && xfce_total=0
 
         : > "$NX_STEP_LOG"
-        (ux "apt upgrade -y && apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils -y" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils -y" > "$NX_STEP_LOG" 2>&1) &
         local xfce_pid=$!
         show_futuristic_progress "Installing Desktop" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
         cat "$NX_STEP_LOG" >> "$NX_LOG"
@@ -468,7 +468,7 @@ quick_devtools_installer() {
         log_section "DEV-TOOLS INSTALL ($pkgs)"
 
         : > "$NX_STEP_LOG"
-        (ux "apt update" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt-get update -y" > "$NX_STEP_LOG" 2>&1) &
         show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
         
         local dev_total
@@ -476,7 +476,7 @@ quick_devtools_installer() {
         [ -z "$dev_total" ] && dev_total=0
 
         : > "$NX_STEP_LOG"
-        (ux "apt install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
+        (ux "apt-get install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
         show_futuristic_progress "Installing modules" $! "$NX_STEP_LOG" "$dev_total"
         say_ok "Modul terpasang."
     done
