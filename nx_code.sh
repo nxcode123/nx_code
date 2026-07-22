@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.1.0"
+NX_CODE_VERSION="v1.2.0-Optimized" # Updated version
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -11,9 +11,7 @@ NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
-# --- PATCH: resolusi default sebelumnya ditulis berulang ("720x1440") di 3
-# tempat berbeda (choose_resolution x2, launch_ubuntu_gui). Sekarang jadi satu
-# sumber kebenaran tunggal.
+# --- PATCH: sumber kebenaran tunggal resolusi default
 NX_DEFAULT_RES_W="720"
 NX_DEFAULT_RES_H="1440"
 
@@ -26,17 +24,13 @@ mkdir -p "$NX_TEMP_DIR"
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-# --- PATCH: pipefail supaya "cmd_gagal | tee log" tidak menyembunyikan
-# kegagalan cmd_gagal di balik exit code sukses milik tee. Tidak memakai
-# `set -e`/`set -u` karena banyak fungsi di script ini sengaja mengandalkan
-# exit code non-nol dari perintah pengecekan (mis. `if ! is_ubuntu_installed`)
-# tanpa ingin script langsung berhenti.
+# --- PATCH: pipefail
 set -o pipefail
 
 # File log sementara untuk progress bar
 NX_STEP_LOG="$NX_TEMP_DIR/.nx_step.log"
 
-# --- TRAP: Pastikan kursor selalu muncul kembali jika script terhenti paksa ---
+# --- TRAP: Pastikan kursor selalu muncul kembali
 trap 'echo -ne "\033[?25h"' EXIT
 
 # ==============================================================================
@@ -100,9 +94,6 @@ log_section() {
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
 }
 
-# --- PATCH: log tidak pernah di-rotate otomatis, cuma bisa dihapus manual lewat
-# menu. Kalau user lupa, file bisa membengkak tanpa batas seiring waktu. Di sini
-# kalau ukurannya lewat 2MB, simpan 500 baris terakhir saja.
 rotate_log_if_needed() {
     [ -f "$NX_LOG" ] || return 0
     local max_bytes=$((2 * 1024 * 1024))
@@ -115,33 +106,14 @@ rotate_log_if_needed() {
 
 # ==============================================================================
 # HELPER: EKSEKUSI DI DALAM UBUNTU
-# --- PATCH: paksa DEBIAN_FRONTEND=noninteractive & DEBCONF_NONINTERACTIVE_SEEN=true
-#     ikut masuk ke dalam sesi proot-distro (chroot Ubuntu), karena env yang
-#     di-export di level Termux TIDAK otomatis diwariskan ke sana. Tanpa ini,
-#     paket seperti keyboard-configuration/tzdata bisa memicu prompt debconf
-#     interaktif yang membuat instalasi hang tanpa progress (stuck di 0%).
 # ==============================================================================
 ux() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1"; }
-# --- PATCH: sebelumnya stderr dibuang total ke /dev/null di semua pemanggilan
-# "quiet". Ini bikin kegagalan non-fatal (mis. useradd gagal karena alasan lain)
-# tidak pernah tercatat di mana pun, sehingga sulit didiagnosis lewat Diagnostic
-# Logs. Sekarang stdout tetap disenyapkan (karena memang tidak perlu ditampilkan
-# ke user), tapi stderr diarahkan ke NX_LOG supaya jejaknya tetap ada.
 ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>>"$NX_LOG"; }
-# --- PATCH: ux_ok dulu identik 100% dengan ux_quiet (duplikasi kode). Sekarang
-# jadi alias murni supaya hanya ada satu implementasi yang perlu dirawat.
 ux_ok() { ux_quiet "$1"; }
 
-# --- PATCH: helper baru untuk menjalankan job background SEKALIGUS mengecek exit
-# code-nya. Sebelumnya show_futuristic_progress hanya menunggu PID mati tanpa
-# pernah membaca status keluar, jadi kalau "apt-get update" gagal (mis. jaringan
-# putus), script tetap lanjut ke step berikutnya seolah semuanya sukses.
-# Pemakaian:
-#   run_tracked "Label" "$NX_STEP_LOG" "$total" -- ux "apt-get update -y"
-#   if [ "$LAST_JOB_STATUS" -ne 0 ]; then ... tangani gagal ... fi
 run_tracked() {
     local label="$1" logfile="$2" total="$3"
-    shift 4  # buang label, logfile, total, "--"
+    shift 4
 
     : > "$logfile"
     ( "$@" > "$logfile" 2>&1 ) &
@@ -159,8 +131,6 @@ is_xfce4_installed()       { ux_quiet "command -v startxfce4"; }
 is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
 
-# --- PATCH: pre-seed jawaban debconf yang paling sering bikin hang
-# (keyboard-configuration, tzdata) supaya apt tidak pernah menunggu input TTY.
 preseed_debconf_answers() {
     ux_ok "debconf-set-selections <<'PRESEED'
 keyboard-configuration  keyboard-configuration/layout           select  English (US)
@@ -285,7 +255,6 @@ animate_logo() {
     echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
-# --- VALIDASI RESOLUSI LAYAR KETAT ---
 choose_resolution() {
     local res_choice custom_res
 
@@ -296,12 +265,12 @@ choose_resolution() {
     echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
     hr
     echo -ne "  ${CYAN}Pilihan ❯${NC} "
-    read res_choice
+    read -r res_choice # PATCH: Added -r
 
     case "$res_choice" in
         1)
             echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}) ❯${NC} "
-            read custom_res
+            read -r custom_res # PATCH: Added -r
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 local w="${BASH_REMATCH[1]}"
                 local h="${BASH_REMATCH[2]}"
@@ -335,14 +304,14 @@ write_gui_startup_script() {
 export DISPLAY=:2
 export ELECTRON_DISABLE_SANDBOX=true
 export PULSE_SERVER=tcp:127.0.0.1:4713
+
+# PATCH: Optimasi Rendering (Mematikan warning accessibility & memaksa SW Rendering)
+export NO_AT_BRIDGE=1
+export LIBGL_ALWAYS_SOFTWARE=1
+
 sleep 2
 OUT=\$(xrandr | grep " connected" | head -n1 | awk '{print \$1}')
 if [ -n "$target_w" ]; then
-    # --- PATCH: dulu jika binary 'cvt' tidak ada, kegagalan ditelan oleh
-    # 2>/dev/null dan user tidak pernah tahu kenapa resolusi custom tidak
-    # diterapkan. 'cvt' berasal dari xserver-xorg-core, yang TIDAK termasuk
-    # paket yang diinstal script ini (hanya x11-xserver-utils) -- jadi ini
-    # kemungkinan besar akan gagal diam-diam pada instalasi bersih.
     if ! command -v cvt >/dev/null 2>&1; then
         echo "[nx-gui] PERINGATAN: 'cvt' tidak ditemukan (paket xserver-xorg-core belum terpasang)." >&2
         echo "[nx-gui] Resolusi custom dilewati, memakai resolusi native." >&2
@@ -359,6 +328,10 @@ if [ -n "$target_w" ]; then
         fi
     fi
 fi
+
+# PATCH: Mematikan XFWM4 Compositing untuk performa lebih ringan di background
+(sleep 3 && xfconf-query -c xfwm4 -p /general/use_compositing -s false >/dev/null 2>&1) &
+
 dbus-launch --exit-with-session startxfce4
 EOF
     ux_ok "chmod 755 /usr/local/bin/nx-gui-startup.sh"
@@ -407,7 +380,6 @@ launch_ubuntu_gui() {
         say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
         log_section "INSTALL XFCE4"
 
-        # --- PATCH: preseed debconf dulu sebelum apt jalan, mencegah hang
         preseed_debconf_answers
 
         run_tracked "Updating repos" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
@@ -416,16 +388,13 @@ launch_ubuntu_gui() {
             return 1
         fi
 
+        # PATCH: Menghapus xfce4-goodies dan menggantinya dengan paket ringan esensial
         local xfce_total
-        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-terminal xfce4-taskmanager dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$xfce_total" ] && xfce_total=0
 
-        # --- PATCH: pakai run_tracked supaya exit code apt-get benar-benar
-        # dicek. Sebelumnya script cuma menebak sukses/gagal dari ada-tidaknya
-        # startxfce4 di akhir, tanpa membedakan "apt gagal karena jaringan"
-        # dari "apt sukses tapi ada masalah lain".
         run_tracked "Installing Desktop" "$NX_STEP_LOG" "$xfce_total" -- \
-            ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y"
+            ux "apt-get upgrade -y && apt-get install xfce4 xfce4-terminal xfce4-taskmanager dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y"
 
         if [ "$LAST_JOB_STATUS" -ne 0 ]; then
             say_err "Instalasi XFCE4 gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
@@ -459,6 +428,10 @@ launch_ubuntu_gui() {
         say_hint "Dibatalkan."
         return 0
     fi
+    
+    if [ -n "$RES_W" ]; then
+        say_hint "PENTING: Pastikan 'Display resolution mode' di Settings Termux:X11 diubah ke 'Custom'."
+    fi
 
     write_gui_startup_script "$RES_W" "$RES_H"
 
@@ -467,42 +440,40 @@ launch_ubuntu_gui() {
 
     say_proc "Menyalakan Display & Audio Server (:2)..."
 
+    # PATCH: Tambahkan export PROOT_NO_SECCOMP=1 untuk performa ARM64 maksimal
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
+export PROOT_NO_SECCOMP=1
 proot-distro login ubuntu --shared-tmp --user $NX_USER -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     else
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
+export PROOT_NO_SECCOMP=1
 proot-distro login ubuntu --shared-tmp -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     fi
     chmod +x "$HOME/.nx_x11_launch.sh"
 
     log_section "GUI LAUNCH (display :2)"
-    # --- PATCH: sebelumnya "cmd | tee -a log &" membuat $! menangkap PID dari
-    # `tee`, bukan dari `termux-x11` itu sendiri (karena pipeline melahirkan
-    # subshell terpisah untuk tiap tahap). Akibatnya kill -0/wait di bawah ini
-    # sebenarnya memantau proses yang salah. Redirect langsung ke file (append)
-    # membuat $! menangkap PID termux-x11 yang sebenarnya.
+    
+    # PATCH: Tahan CPU dari phantom process killer Android
+    termux-wake-lock
+
     termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" >> "$NX_LOG" 2>&1 &
     X11_PID=$!
 
     sleep 2
     if ! kill -0 "$X11_PID" 2>/dev/null; then
         say_err "Gagal menyalakan X11. Cek log error."
+        termux-wake-unlock # Release if failed
         return 1
     fi
 
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
     say_hint "Buka aplikasi 'Termux:X11' di Android."
 
-    # --- PATCH: catat PID nyata dari sesi yang baru dinyalakan (bukan pola
-    # pkill -f yang lebar), supaya kill_ubuntu_gui bisa menyudahi sesi ini
-    # secara presisi tanpa berisiko menyentuh proses lain di luar sesi ini.
-    # proot-distro TIDAK punya PID namespace sungguhan, jadi mencocokkan PID
-    # eksplisit jauh lebih aman daripada mencocokkan nama proses secara luas.
     local session_pid=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         session_pid=$(ux "pgrep -f xfce4-session 2>/dev/null | head -n1" 2>/dev/null)
@@ -517,6 +488,9 @@ WRAPEOF
     show_futuristic_progress "Sesi GUI Aktif..." "$X11_PID"
     wait "$X11_PID" 2>/dev/null
     rm -f "$NX_TEMP_DIR/.nx_gui_state"
+    
+    # PATCH: Lepas CPU saat selesai
+    termux-wake-unlock
     say_ok "Sesi GUI ditutup."
 }
 
@@ -524,12 +498,6 @@ kill_ubuntu_gui() {
     say_proc "Terminating GUI processes..."
     local found=0
 
-    # --- PATCH: sebelumnya cleanup HANYA memakai pkill -f dengan pola nama
-    # proses lebar ('xfce4|dbus-launch|Xwayland'), yang berisiko menyentuh
-    # proses lain di luar sesi ini karena proot-distro tidak mengisolasi PID
-    # namespace. Sekarang diutamakan mematikan PID spesifik yang tercatat saat
-    # sesi ini dinyalakan; pola lebar hanya jadi fallback terakhir kalau state
-    # file tidak ada (mis. sesi dinyalakan di luar script ini / restart Termux).
     if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
         # shellcheck disable=SC1091
         source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
@@ -544,12 +512,9 @@ kill_ubuntu_gui() {
         fi
         rm -f "$NX_TEMP_DIR/.nx_gui_state"
 
-        # beri waktu proses berhenti dengan wajar sebelum verifikasi
         sleep 2
     fi
 
-    # Fallback lebar: jaring pengaman terakhir, dipakai HANYA kalau state
-    # tracking di atas tidak ada atau gagal membersihkan semuanya.
     if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
         say_warn "Sisa proses ditemukan, membersihkan dengan pola luas (fallback)."
         if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
@@ -558,6 +523,10 @@ kill_ubuntu_gui() {
     if pkill -f "pulseaudio" >/dev/null 2>&1; then found=1; fi
 
     sleep 1
+    
+    # PATCH: Pastikan melepas wake-lock jika terbunuh secara manual
+    termux-wake-unlock >/dev/null 2>&1
+    
     if [ "$found" -eq 1 ]; then
         say_ok "Sesi dibersihkan."
     else
@@ -587,7 +556,7 @@ check_gui_session() {
 
     echo ""
     echo -ne "  ${CYAN}Bersihkan semua sesi sekarang? (y/n) ❯${NC} "
-    read clean_choice
+    read -r clean_choice # PATCH: Added -r
     if [ "$clean_choice" == "y" ] || [ "$clean_choice" == "Y" ]; then
         kill_ubuntu_gui
     fi
@@ -610,7 +579,7 @@ quick_devtools_installer() {
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read dev_choice
+        read -r dev_choice # PATCH: Added -r
 
         local pkgs=""
         case "$dev_choice" in
@@ -626,7 +595,6 @@ quick_devtools_installer() {
         say_proc "Menyiapkan: ${pkgs}..."
         log_section "DEV-TOOLS INSTALL ($pkgs)"
 
-        # --- PATCH: preseed juga di jalur ini, untuk jaga-jaga
         preseed_debconf_answers
 
         run_tracked "Updating package list" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
@@ -670,15 +638,9 @@ check_for_update() {
 
     say_ok "Pembaruan tersedia: $remote_version (Saat ini: $NX_CODE_VERSION)"
     echo -ne "  ${CYAN}Unduh dan terapkan pembaruan sekarang? (y/n) ❯${NC} "
-    read update_choice
+    read -r update_choice # PATCH: Added -r
 
     if [ "$update_choice" == "y" ] || [ "$update_choice" == "Y" ]; then
-        # --- PATCH: sebelumnya file yang baru diunduh langsung di-mv & di-exec
-        # tanpa validasi apa pun. Kalau proses download terputus di tengah jalan
-        # (file corrupt) atau berisi syntax error, user akan mendapati terminal
-        # rusak/tidak bisa masuk sama sekali. Ini BUKAN verifikasi keamanan/
-        # signature (repo publik tidak menyediakan checksum resmi), hanya
-        # sanity check dasar supaya kegagalan terdeteksi sebelum menimpa file lama.
         if [ ! -s "$tmp_file" ]; then
             say_err "File hasil unduhan kosong. Pembaruan dibatalkan."
             rm -f "$tmp_file"
@@ -711,7 +673,7 @@ view_error_log() {
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read log_choice
+        read -r log_choice # PATCH: Added -r
 
         case "$log_choice" in
             1)
@@ -751,7 +713,7 @@ select_theme_menu() {
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Simpan & Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read theme_choice
+        read -r theme_choice # PATCH: Added -r
 
         if [ "$theme_choice" == "0" ]; then break; fi
 
@@ -788,7 +750,7 @@ show_shortcut_menu() {
         print_menu_item "0"  "Tutup Panel"
         echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
         echo -ne "  ${CYAN}Execute ❯${NC} "
-        read pilihan
+        read -r pilihan # PATCH: Added -r
 
         case $pilihan in
             1)
@@ -802,7 +764,7 @@ show_shortcut_menu() {
                 sleep 1 ;;
             2) launch_ubuntu_gui; sleep 1 ;;
             3) kill_ubuntu_gui; sleep 1 ;;
-            4) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read; ;;
+            4) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read -r; ;;
             5) quick_devtools_installer; sleep 1 ;;
             6) htop ;;
             7) check_for_update; sleep 1 ;;
@@ -1016,7 +978,7 @@ echo -e "  ${WHITE}Terminal memerlukan proses Restart:${NC}"
 echo -e "  ${PURPLE}[1]${NC} ${WHITE}Restart Otomatis (Rekomendasi)${NC}"
 echo -e "  ${PURPLE}[0]${NC} ${WHITE}Keluar${NC}"
 echo -ne "  ${CYAN}Pilihan ❯${NC} "
-read final_choice
+read -r final_choice # PATCH: Added -r
 
 case "$final_choice" in
     1) exec bash ;;
