@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.1.0"
+NX_CODE_VERSION="v1.1.1"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -436,6 +436,27 @@ launch_ubuntu_gui() {
             return 1
         fi
         say_ok "XFCE4 berhasil dipasang."
+    fi
+
+    # --- PATCH: paket glycin-loaders (loader gambar GNOME generasi baru) selalu
+    # menjalankan proses decode-nya lewat "bwrap --unshare-all", yang butuh
+    # Linux namespace sungguhan. proot-distro TIDAK menyediakan ini (proot cuma
+    # emulasi syscall lewat ptrace), sehingga setiap kali XFCE4 memuat ikon apa
+    # pun, loader gagal start dan memicu assertion GTK/Wnck yang fatal --
+    # xfce4-session langsung Aborted beberapa detik setelah start. Ini bukan
+    # bug di script kita, tapi incompatibility Ubuntu-terbaru vs proot yang
+    # sudah dilaporkan di komunitas Termux/proot-distro. Fix: hapus paketnya
+    # (gdk-pixbuf balik ke loader native non-sandbox untuk PNG dkk) dan tahan
+    # supaya tidak ke-install ulang lewat dependency lain. Dijalankan di luar
+    # blok instalasi supaya berlaku juga untuk instalasi XFCE4 yang sudah ada
+    # sebelum patch ini.
+    if ux_quiet "dpkg -s glycin-loaders"; then
+        say_proc "Menghapus glycin-loaders (tidak kompatibel dengan proot)..."
+        if ux_ok "apt-get purge -y glycin-loaders && apt-mark hold glycin-loaders"; then
+            say_ok "glycin-loaders dihapus & ditahan agar tidak ke-install ulang."
+        else
+            say_warn "Gagal menghapus glycin-loaders. Cek Diagnostic Logs kalau GUI masih crash saat load ikon."
+        fi
     fi
 
     if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
