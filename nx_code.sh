@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.19"
+NX_CODE_VERSION="v1.0.20"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -112,13 +112,16 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS AMAN KURSOR & ANTI-STUCK ESCAPE SEQUENCE ---
+# --- FUNGSI PROGRESS AMAN KURSOR & ANTI-STUCK DENGAN SPINNER ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
     local logfile="${3:-}"
     local total="${4:-0}"
     local label="$message"
+
+    local spin_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local spin_i=0
 
     echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
@@ -129,32 +132,39 @@ show_futuristic_progress() {
         local done_count=0
         if [ -n "$logfile" ] && [ -s "$logfile" ]; then
             local candidate
-            # Membersihkan ANSI escape sequences agar teks log bersih dari sampah terminal
-            candidate=$(tail -n 1 "$logfile" 2>/dev/null | sed -E 's/\x1B\[[0-9;]*[JKmsu]//g' | tr -cd '[:print:]')
+            candidate=$(tail -n 1 "$logfile" 2>/dev/null | sed -E 's/\x1B\[[0-9;?]*[a-zA-Z//=?]*//g; s/\x1B\([B012]//g' | tr -cd '[:print:]')
             [ -n "$candidate" ] && activity="$candidate"
             if [ "$total" -gt 0 ]; then
-                done_count=$(grep -Ec '^(Unpacking|Setting up|Preparing to unpack|Get:|Hit:)' "$logfile" 2>/dev/null)
+                done_count=$(grep -Ec '^(Unpacking|Setting up|Preparing to unpack)' "$logfile" 2>/dev/null)
             fi
         fi
+
+        local char="${spin_chars:spin_i:1}"
+        spin_i=$(( (spin_i + 1) % ${#spin_chars} ))
 
         if [ "$total" -gt 0 ]; then
             local percent=$(( done_count * 100 / total ))
             [ "$percent" -gt 100 ] && percent=100
-            local bar_w=15
-            [ "$cols" -lt 40 ] && bar_w=10
+            local bar_w=12
+            [ "$cols" -lt 40 ] && bar_w=8
             local filled=$(( percent * bar_w / 100 ))
             local bar=""
             for ((j=0; j<filled; j++)); do bar="${bar}■"; done
             for ((j=filled; j<bar_w; j++)); do bar="${bar}□"; done
-            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} ${DIM}│${NC} %s" "$bar" "$percent" "${activity:0:15}"
+            
+            local max_len=$(( cols - 35 ))
+            [ "$max_len" -lt 10 ] && max_len=10
+            activity="${activity:0:$max_len}"
+
+            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}[%s]${NC} ${NEON_GREEN}%3d%%${NC} ${DIM}│${NC} ${CYAN}%s${NC} %s" "$bar" "$percent" "$char" "$activity"
         else
-            local budget=$(( cols - 10 ))
+            local budget=$(( cols - 15 ))
             [ "$budget" -lt 5 ] && budget=5
             activity="${activity:0:$budget}"
-            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}↻${NC} %s" "$activity"
+            printf "\r\033[K  ${DIM}╰─${NC} ${CYAN}%s${NC} %s" "$char" "$activity"
         fi
 
-        sleep 0.15
+        sleep 0.1
     done
 
     printf "\r\033[K  ${SUCCESS} %s\n" "$label"
