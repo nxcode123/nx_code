@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.20"
+NX_CODE_VERSION="v1.0.22"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -19,6 +19,13 @@ mkdir -p "$NX_TEMP_DIR"
 # --- MODE NON-INTERAKTIF ---
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# --- PATCH: pipefail supaya "cmd_gagal | tee log" tidak menyembunyikan
+# kegagalan cmd_gagal di balik exit code sukses milik tee. Tidak memakai
+# `set -e`/`set -u` karena banyak fungsi di script ini sengaja mengandalkan
+# exit code non-nol dari perintah pengecekan (mis. `if ! is_ubuntu_installed`)
+# tanpa ingin script langsung berhenti.
+set -o pipefail
 
 # File log sementara untuk progress bar
 NX_STEP_LOG="$NX_TEMP_DIR/.nx_step.log"
@@ -37,7 +44,7 @@ load_theme() {
 
     DIM='\033[2m'
     BOLD='\033[1m'
-    
+
     case "$theme" in
         matrix)
             CYAN='\033[0;32m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[1;32m'
@@ -82,22 +89,80 @@ print_menu_item() {
 }
 
 log_section() {
+    rotate_log_if_needed
     echo "" >> "$NX_LOG"
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
 }
 
+# --- PATCH: log tidak pernah di-rotate otomatis, cuma bisa dihapus manual lewat
+# menu. Kalau user lupa, file bisa membengkak tanpa batas seiring waktu. Di sini
+# kalau ukurannya lewat 2MB, simpan 500 baris terakhir saja.
+rotate_log_if_needed() {
+    [ -f "$NX_LOG" ] || return 0
+    local max_bytes=$((2 * 1024 * 1024))
+    local size
+    size=$(wc -c < "$NX_LOG" 2>/dev/null || echo 0)
+    if [ "$size" -gt "$max_bytes" ]; then
+        tail -n 500 "$NX_LOG" > "$NX_LOG.tmp" 2>/dev/null && mv "$NX_LOG.tmp" "$NX_LOG"
+    fi
+}
+
 # ==============================================================================
 # HELPER: EKSEKUSI DI DALAM UBUNTU
+# --- PATCH: paksa DEBIAN_FRONTEND=noninteractive & DEBCONF_NONINTERACTIVE_SEEN=true
+#     ikut masuk ke dalam sesi proot-distro (chroot Ubuntu), karena env yang
+#     di-export di level Termux TIDAK otomatis diwariskan ke sana. Tanpa ini,
+#     paket seperti keyboard-configuration/tzdata bisa memicu prompt debconf
+#     interaktif yang membuat instalasi hang tanpa progress (stuck di 0%).
 # ==============================================================================
-ux() { proot-distro login ubuntu -- bash -c "$1"; }
-ux_quiet() { proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1; }
-ux_ok() { proot-distro login ubuntu -- bash -c "$1" >/dev/null 2>&1; }
+ux() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1"; }
+ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>&1; }
+# --- PATCH: ux_ok dulu identik 100% dengan ux_quiet (duplikasi kode). Sekarang
+# jadi alias murni supaya hanya ada satu implementasi yang perlu dirawat.
+ux_ok() { ux_quiet "$1"; }
+
+# --- PATCH: helper baru untuk menjalankan job background SEKALIGUS mengecek exit
+# code-nya. Sebelumnya show_futuristic_progress hanya menunggu PID mati tanpa
+# pernah membaca status keluar, jadi kalau "apt-get update" gagal (mis. jaringan
+# putus), script tetap lanjut ke step berikutnya seolah semuanya sukses.
+# Pemakaian:
+#   run_tracked "Label" "$NX_STEP_LOG" "$total" -- ux "apt-get update -y"
+#   if [ "$LAST_JOB_STATUS" -ne 0 ]; then ... tangani gagal ... fi
+run_tracked() {
+    local label="$1" logfile="$2" total="$3"
+    shift 4  # buang label, logfile, total, "--"
+
+    : > "$logfile"
+    ( "$@" > "$logfile" 2>&1 ) &
+    local pid=$!
+    show_futuristic_progress "$label" "$pid" "$logfile" "$total"
+    wait "$pid"
+    LAST_JOB_STATUS=$?
+    cat "$logfile" >> "$NX_LOG"
+    return "$LAST_JOB_STATUS"
+}
 
 is_ubuntu_installed()      { proot-distro login ubuntu -- true >/dev/null 2>&1; }
 is_termux_x11_installed()  { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed()       { ux_quiet "command -v startxfce4"; }
 is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
+
+# --- PATCH: pre-seed jawaban debconf yang paling sering bikin hang
+# (keyboard-configuration, tzdata) supaya apt tidak pernah menunggu input TTY.
+preseed_debconf_answers() {
+    ux_ok "debconf-set-selections <<'PRESEED'
+keyboard-configuration  keyboard-configuration/layout           select  English (US)
+keyboard-configuration  keyboard-configuration/layoutcode       string  us
+keyboard-configuration  keyboard-configuration/variant          select  English (US)
+keyboard-configuration  keyboard-configuration/model            select  Generic 105-key (Intl) PC
+keyboard-configuration  keyboard-configuration/altgr            select  The default for the keyboard layout
+keyboard-configuration  keyboard-configuration/unsupported_layout boolean true
+keyboard-configuration  keyboard-configuration/unsupported_config_layout boolean true
+tzdata                  tzdata/Areas                            select  Etc
+tzdata                  tzdata/Zones/Etc                        select  UTC
+PRESEED"
+}
 
 setup_nonroot_user() {
     ux "
@@ -151,7 +216,7 @@ show_futuristic_progress() {
             local bar=""
             for ((j=0; j<filled; j++)); do bar="${bar}■"; done
             for ((j=filled; j<bar_w; j++)); do bar="${bar}□"; done
-            
+
             local max_len=$(( cols - 35 ))
             [ "$max_len" -lt 10 ] && max_len=10
             activity="${activity:0:$max_len}"
@@ -253,7 +318,7 @@ choose_resolution() {
 write_gui_startup_script() {
     local target_w="$1"
     local target_h="$2"
-    
+
     proot-distro login ubuntu -- bash -c "cat > /usr/local/bin/nx-gui-startup.sh" << EOF
 #!/bin/bash
 export DISPLAY=:2
@@ -262,13 +327,25 @@ export PULSE_SERVER=tcp:127.0.0.1:4713
 sleep 2
 OUT=\$(xrandr | grep " connected" | head -n1 | awk '{print \$1}')
 if [ -n "$target_w" ]; then
-    MODELINE=\$(cvt $target_w $target_h 60 2>/dev/null | grep Modeline)
-    if [ -n "\$MODELINE" ]; then
-        MODE_NAME=\$(echo "\$MODELINE" | awk '{print \$2}' | tr -d '"')
-        MODE_PARAMS=\$(echo "\$MODELINE" | cut -d' ' -f3-)
-        xrandr --newmode "\$MODE_NAME" \$MODE_PARAMS 2>/dev/null
-        xrandr --addmode "\$OUT" "\$MODE_NAME" 2>/dev/null
-        xrandr --output "\$OUT" --mode "\$MODE_NAME" 2>/dev/null
+    # --- PATCH: dulu jika binary 'cvt' tidak ada, kegagalan ditelan oleh
+    # 2>/dev/null dan user tidak pernah tahu kenapa resolusi custom tidak
+    # diterapkan. 'cvt' berasal dari xserver-xorg-core, yang TIDAK termasuk
+    # paket yang diinstal script ini (hanya x11-xserver-utils) -- jadi ini
+    # kemungkinan besar akan gagal diam-diam pada instalasi bersih.
+    if ! command -v cvt >/dev/null 2>&1; then
+        echo "[nx-gui] PERINGATAN: 'cvt' tidak ditemukan (paket xserver-xorg-core belum terpasang)." >&2
+        echo "[nx-gui] Resolusi custom dilewati, memakai resolusi native." >&2
+    else
+        MODELINE=\$(cvt $target_w $target_h 60 2>/dev/null | grep Modeline)
+        if [ -n "\$MODELINE" ]; then
+            MODE_NAME=\$(echo "\$MODELINE" | awk '{print \$2}' | tr -d '"')
+            MODE_PARAMS=\$(echo "\$MODELINE" | cut -d' ' -f3-)
+            xrandr --newmode "\$MODE_NAME" \$MODE_PARAMS 2>/dev/null
+            xrandr --addmode "\$OUT" "\$MODE_NAME" 2>/dev/null
+            xrandr --output "\$OUT" --mode "\$MODE_NAME" 2>/dev/null
+        else
+            echo "[nx-gui] PERINGATAN: cvt gagal menghasilkan modeline untuk ${target_w}x${target_h}." >&2
+        fi
     fi
 fi
 dbus-launch --exit-with-session startxfce4
@@ -319,20 +396,30 @@ launch_ubuntu_gui() {
         say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
         log_section "INSTALL XFCE4"
 
-        : > "$NX_STEP_LOG"
-        (ux "apt-get update -y" > "$NX_STEP_LOG" 2>&1) &
-        show_futuristic_progress "Updating repos" $! "$NX_STEP_LOG"
-        cat "$NX_STEP_LOG" >> "$NX_LOG"
+        # --- PATCH: preseed debconf dulu sebelum apt jalan, mencegah hang
+        preseed_debconf_answers
+
+        run_tracked "Updating repos" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Gagal update repo Ubuntu (exit code $LAST_JOB_STATUS). Cek koneksi & Diagnostic Logs."
+            return 1
+        fi
 
         local xfce_total
-        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$xfce_total" ] && xfce_total=0
 
-        : > "$NX_STEP_LOG"
-        (ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo pulseaudio-utils alsa-utils -y" > "$NX_STEP_LOG" 2>&1) &
-        local xfce_pid=$!
-        show_futuristic_progress "Installing Desktop" "$xfce_pid" "$NX_STEP_LOG" "$xfce_total"
-        cat "$NX_STEP_LOG" >> "$NX_LOG"
+        # --- PATCH: pakai run_tracked supaya exit code apt-get benar-benar
+        # dicek. Sebelumnya script cuma menebak sukses/gagal dari ada-tidaknya
+        # startxfce4 di akhir, tanpa membedakan "apt gagal karena jaringan"
+        # dari "apt sukses tapi ada masalah lain".
+        run_tracked "Installing Desktop" "$NX_STEP_LOG" "$xfce_total" -- \
+            ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y"
+
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Instalasi XFCE4 gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
+            return 1
+        fi
         if ! is_xfce4_installed; then
             say_err "Instalasi XFCE4 gagal. Cek log."
             return 1
@@ -356,12 +443,12 @@ launch_ubuntu_gui() {
 
     setup_no_sandbox_fix
     choose_resolution
-    
+
     if [ "$GUI_CANCELLED" -eq 1 ]; then
         say_hint "Dibatalkan."
         return 0
     fi
-    
+
     write_gui_startup_script "$RES_W" "$RES_H"
 
     pkill -f "termux-x11" >/dev/null 2>&1
@@ -383,7 +470,12 @@ WRAPEOF
     chmod +x "$HOME/.nx_x11_launch.sh"
 
     log_section "GUI LAUNCH (display :2)"
-    termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" 2>&1 | tee -a "$NX_LOG" &
+    # --- PATCH: sebelumnya "cmd | tee -a log &" membuat $! menangkap PID dari
+    # `tee`, bukan dari `termux-x11` itu sendiri (karena pipeline melahirkan
+    # subshell terpisah untuk tiap tahap). Akibatnya kill -0/wait di bawah ini
+    # sebenarnya memantau proses yang salah. Redirect langsung ke file (append)
+    # membuat $! menangkap PID termux-x11 yang sebenarnya.
+    termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" >> "$NX_LOG" 2>&1 &
     X11_PID=$!
 
     sleep 2
@@ -477,10 +569,13 @@ quick_devtools_installer() {
         say_proc "Menyiapkan: ${pkgs}..."
         log_section "DEV-TOOLS INSTALL ($pkgs)"
 
+        # --- PATCH: preseed juga di jalur ini, untuk jaga-jaga
+        preseed_debconf_answers
+
         : > "$NX_STEP_LOG"
         (ux "apt-get update -y" > "$NX_STEP_LOG" 2>&1) &
         show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
-        
+
         local dev_total
         dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$dev_total" ] && dev_total=0
@@ -517,8 +612,26 @@ check_for_update() {
     read update_choice
 
     if [ "$update_choice" == "y" ] || [ "$update_choice" == "Y" ]; then
+        # --- PATCH: sebelumnya file yang baru diunduh langsung di-mv & di-exec
+        # tanpa validasi apa pun. Kalau proses download terputus di tengah jalan
+        # (file corrupt) atau berisi syntax error, user akan mendapati terminal
+        # rusak/tidak bisa masuk sama sekali. Ini BUKAN verifikasi keamanan/
+        # signature (repo publik tidak menyediakan checksum resmi), hanya
+        # sanity check dasar supaya kegagalan terdeteksi sebelum menimpa file lama.
+        if [ ! -s "$tmp_file" ]; then
+            say_err "File hasil unduhan kosong. Pembaruan dibatalkan."
+            rm -f "$tmp_file"
+            return 1
+        fi
+        if ! bash -n "$tmp_file" 2>/dev/null; then
+            say_err "File hasil unduhan mengandung syntax error. Pembaruan dibatalkan, file lama tetap dipakai."
+            rm -f "$tmp_file"
+            return 1
+        fi
+        cp "$HOME/nx_code.sh" "$HOME/nx_code.sh.bak" 2>/dev/null
         mv "$tmp_file" "$HOME/nx_code.sh"
         chmod +x "$HOME/nx_code.sh"
+        say_ok "Backup versi lama disimpan di nx_code.sh.bak"
         say_proc "Restarting terminal UI..."
         sleep 1
         exec bash "$HOME/nx_code.sh"
@@ -750,7 +863,7 @@ show_futuristic_progress "Mounting Display Engines" $! "$NX_STEP_LOG"
 if ! is_ubuntu_installed; then
     say_proc "Generating Virtual Environment..."
     proot-distro remove ubuntu > /dev/null 2>&1
-    
+
     : > "$NX_STEP_LOG"
     (proot-distro install ubuntu > "$NX_STEP_LOG" 2>&1) &
     show_futuristic_progress "Downloading Ubuntu Core (Bisa memakan waktu)" $! "$NX_STEP_LOG"
@@ -771,7 +884,7 @@ fi
 
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
-    
+
     if [ ! -f "$0" ] || [ "$0" = "bash" ] || [ "$0" = "-bash" ]; then
         curl --silent --max-time 15 -fsSL "$NX_CODE_REPO_RAW_URL" -o "$dest" 2>/dev/null
         [ -s "$dest" ] && chmod +x "$dest" && return 0
@@ -779,10 +892,10 @@ copy_self_to_home() {
     fi
 
     local src=""
-    if [ -n "${BASH_SOURCE[0]}" ] && [ -f "${BASH_SOURCE[0]}" ]; then 
+    if [ -n "${BASH_SOURCE[0]}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
         src=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)
-    elif [ -f "$0" ]; then 
-        src=$(realpath "$0" 2>/dev/null); 
+    elif [ -f "$0" ]; then
+        src=$(realpath "$0" 2>/dev/null);
     fi
 
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
@@ -790,7 +903,7 @@ copy_self_to_home() {
         chmod +x "$dest"
         return 0
     fi
-    
+
     [ -f "$dest" ] && return 0
     return 1
 }
