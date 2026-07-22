@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.3.0-VNC-Ready" # Updated version
+NX_CODE_VERSION="v1.4.0-CleanMenu" # Updated version
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -159,7 +159,6 @@ setup_nonroot_user() {
     "
 }
 
-# --- FUNGSI PROGRESS AMAN KURSOR & ANTI-STUCK DENGAN SPINNER ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -256,13 +255,108 @@ animate_logo() {
     echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
-choose_resolution() {
+# ==============================================================================
+# FUNGSI MANAJEMEN SESI GUI & VNC
+# ==============================================================================
+
+check_gui_session_x11() {
+    say_proc "Memeriksa sesi X11..."
+    local x11_procs x11_count xfce_procs
+    x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
+    xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
+
+    if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
+        say_ok "Aman. Tidak ada proses GUI X11 yang aktif."
+        return 0
+    fi
+    echo ""
+    if [ -n "$x11_procs" ]; then
+        x11_count=$(echo "$x11_procs" | wc -l)
+        echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
+    fi
+    if [ -n "$xfce_procs" ]; then
+        echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
+    fi
+    echo ""
+}
+
+kill_ubuntu_x11() {
+    say_proc "Terminating X11 processes..."
+    local found=0
+
+    if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
+        source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
+        if [ -n "${SESSION_PID:-}" ]; then
+            ux_ok "kill $SESSION_PID 2>/dev/null"
+            found=1
+        fi
+        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
+            kill "$X11_PID" 2>/dev/null
+            found=1
+        fi
+        rm -f "$NX_TEMP_DIR/.nx_gui_state"
+        sleep 1
+    fi
+
+    if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
+        if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
+        if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
+    fi
+    
+    sleep 1
+    termux-wake-unlock >/dev/null 2>&1
+    
+    if [ "$found" -eq 1 ]; then
+        say_ok "Sesi X11 dibersihkan."
+    else
+        say_hint "Tidak ada sesi X11 aktif."
+    fi
+}
+
+check_gui_session_vnc() {
+    say_proc "Memeriksa sesi VNC..."
+    local vnc_procs
+    vnc_procs=$(ux "pgrep -af 'Xtigervnc'" 2>/dev/null)
+
+    if [ -z "$vnc_procs" ]; then
+        say_ok "Aman. Tidak ada proses VNC yang aktif."
+        return 0
+    fi
+    echo ""
+    echo -e "  ${DIM}▶ VNC Server (TigerVNC) aktif di Ubuntu.${NC}"
+    echo ""
+}
+
+kill_ubuntu_vnc() {
+    say_proc "Terminating VNC processes..."
+    local found=0
+
+    if ux_quiet "pgrep -f Xtigervnc"; then
+        ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
+        ux_ok "pkill -f Xtigervnc"
+        found=1
+    fi
+    
+    sleep 1
+    termux-wake-unlock >/dev/null 2>&1
+    
+    if [ "$found" -eq 1 ]; then
+        say_ok "Sesi VNC dibersihkan."
+    else
+        say_hint "Tidak ada sesi VNC aktif."
+    fi
+}
+
+choose_resolution_x11() {
     local res_choice custom_res
+    GUI_CANCELLED=0
 
     hr
-    echo -e "  ${WHITE}Pilih Resolusi Layar GUI:${NC}"
+    echo -e "  ${WHITE}Pilih Resolusi Layar GUI - X11:${NC}"
     echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
     echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi / Bebas)${NC}"
+    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Matikan GUI - X11${NC}"
+    echo -e "  ${PURPLE}[4]${NC} ${WHITE}Cek sesi yang aktif${NC}"
     echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
     hr
     echo -ne "  ${CYAN}Pilihan ❯${NC} "
@@ -288,10 +382,57 @@ choose_resolution() {
             fi
             ;;
         2) RES_W=""; RES_H="" ;;
+        3) kill_ubuntu_x11; GUI_CANCELLED=1 ;;
+        4) check_gui_session_x11; GUI_CANCELLED=1 ;;
         0) GUI_CANCELLED=1 ;;
         *)
-            say_warn "Pilihan tidak valid, memakai default."
-            RES_W="$NX_DEFAULT_RES_W"; RES_H="$NX_DEFAULT_RES_H"
+            say_warn "Pilihan tidak valid, kembali ke menu."
+            GUI_CANCELLED=1
+            ;;
+    esac
+}
+
+choose_resolution_vnc() {
+    local res_choice custom_res
+    GUI_CANCELLED=0
+
+    hr
+    echo -e "  ${WHITE}Pilih Resolusi Layar GUI - VNC:${NC}"
+    echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
+    echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi / Bebas)${NC}"
+    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Matikan GUI - VNC${NC}"
+    echo -e "  ${PURPLE}[4]${NC} ${WHITE}List sesi VNC yang aktif${NC}"
+    echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
+    hr
+    echo -ne "  ${CYAN}Pilihan ❯${NC} "
+    read -r res_choice
+
+    case "$res_choice" in
+        1)
+            echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. 1280x720) ❯${NC} "
+            read -r custom_res
+            if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+                local w="${BASH_REMATCH[1]}"
+                local h="${BASH_REMATCH[2]}"
+                if [ "$w" -ge 400 ] && [ "$w" -le 7680 ] && [ "$h" -ge 400 ] && [ "$h" -le 4320 ]; then
+                    RES_W="$w"
+                    RES_H="$h"
+                else
+                    say_warn "Resolusi di luar batas wajar. Memakai 1280x720."
+                    RES_W="1280"; RES_H="720"
+                fi
+            else
+                say_warn "Format tidak valid. Memakai 1280x720."
+                RES_W="1280"; RES_H="720"
+            fi
+            ;;
+        2) RES_W=""; RES_H="" ;;
+        3) kill_ubuntu_vnc; GUI_CANCELLED=1 ;;
+        4) check_gui_session_vnc; GUI_CANCELLED=1 ;;
+        0) GUI_CANCELLED=1 ;;
+        *)
+            say_warn "Pilihan tidak valid, kembali ke menu."
+            GUI_CANCELLED=1
             ;;
     esac
 }
@@ -431,11 +572,6 @@ dbus-launch --exit-with-session startxfce4 &' > /home/$NX_USER/.vnc/xstartup
 # MODE 2: TERMUX X11 LAUNCHER
 # ==============================================================================
 launch_ubuntu_gui() {
-    local GUI_CANCELLED=0
-    local RES_W="$NX_DEFAULT_RES_W"
-    local RES_H="$NX_DEFAULT_RES_H"
-    local X11_PID
-
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
         return 1
@@ -444,6 +580,12 @@ launch_ubuntu_gui() {
     if ! is_termux_x11_installed; then
         say_err "termux-x11 belum terpasang."
         return 1
+    fi
+
+    choose_resolution_x11
+    if [ "$GUI_CANCELLED" -eq 1 ]; then
+        say_hint "Kembali ke menu utama."
+        return 0
     fi
 
     setup_audio_server
@@ -455,13 +597,7 @@ launch_ubuntu_gui() {
     fi
 
     setup_no_sandbox_fix
-    choose_resolution
-
-    if [ "$GUI_CANCELLED" -eq 1 ]; then
-        say_hint "Dibatalkan."
-        return 0
-    fi
-
+    
     if [ -n "$RES_W" ]; then
         say_hint "PENTING: Pastikan 'Display resolution mode' di Settings Termux:X11 diubah ke 'Custom'."
     fi
@@ -492,7 +628,7 @@ WRAPEOF
     termux-wake-lock
 
     termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" >> "$NX_LOG" 2>&1 &
-    X11_PID=$!
+    local X11_PID=$!
 
     sleep 2
     if ! kill -0 "$X11_PID" 2>/dev/null; then
@@ -527,13 +663,15 @@ WRAPEOF
 # MODE 3: VNC SERVER LAUNCHER
 # ==============================================================================
 launch_ubuntu_vnc() {
-    local GUI_CANCELLED=0
-    local RES_W=""
-    local RES_H=""
-
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
         return 1
+    fi
+
+    choose_resolution_vnc
+    if [ "$GUI_CANCELLED" -eq 1 ]; then
+        say_hint "Kembali ke menu utama."
+        return 0
     fi
 
     setup_audio_server
@@ -547,12 +685,6 @@ launch_ubuntu_vnc() {
     setup_no_sandbox_fix
     setup_vnc_server || return 1
 
-    choose_resolution
-    if [ "$GUI_CANCELLED" -eq 1 ]; then
-        say_hint "Dibatalkan."
-        return 0
-    fi
-
     local vnc_w="1280"
     local vnc_h="720"
     if [ -n "$RES_W" ] && [ -n "$RES_H" ]; then
@@ -565,13 +697,11 @@ launch_ubuntu_vnc() {
     say_proc "Menyalakan VNC Server (Display :1)..."
     log_section "VNC LAUNCH (display :1)"
     
-    # Bersihkan sisa lock file VNC jika ada crash sebelumnya
     ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
     ux_ok "rm -rf /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null"
     
     termux-wake-lock
     
-    # Eksekusi VNC sebagai user
     ux "su - $NX_USER -c 'USER=$NX_USER vncserver :1 -geometry ${vnc_w}x${vnc_h} -depth 24 -localhost no'" >> "$NX_LOG" 2>&1
     
     local vnc_pid
@@ -591,88 +721,8 @@ launch_ubuntu_vnc() {
     echo -e "  ${WHITE}Password : ${NEON_PINK}nxcode${NC}"
     hr
     
-    echo "VNC_PID=$vnc_pid" > "$NX_TEMP_DIR/.nx_gui_state"
-
     echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
     read -r
-}
-
-# ==============================================================================
-# KILL PROCESSES
-# ==============================================================================
-kill_ubuntu_gui() {
-    say_proc "Terminating GUI/VNC processes..."
-    local found=0
-
-    # 1. Bersihkan VNC jika aktif
-    if ux_quiet "pgrep -f Xtigervnc"; then
-        ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
-        ux_ok "pkill -f Xtigervnc"
-        found=1
-    fi
-
-    # 2. Bersihkan X11 State
-    if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
-        source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
-        if [ -n "${SESSION_PID:-}" ]; then
-            ux_ok "kill $SESSION_PID 2>/dev/null"
-            found=1
-        fi
-        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
-            kill "$X11_PID" 2>/dev/null
-            found=1
-        fi
-        rm -f "$NX_TEMP_DIR/.nx_gui_state"
-        sleep 1
-    fi
-
-    # 3. Bruteforce Fallback (jika masih nyangkut)
-    if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
-        if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
-        if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
-    fi
-    if pkill -f "pulseaudio" >/dev/null 2>&1; then found=1; fi
-
-    sleep 1
-    termux-wake-unlock >/dev/null 2>&1
-    
-    if [ "$found" -eq 1 ]; then
-        say_ok "Sesi dibersihkan."
-    else
-        say_hint "Tidak ada sesi aktif."
-    fi
-}
-
-check_gui_session() {
-    say_proc "Memeriksa sesi..."
-    local x11_procs x11_count xfce_procs vnc_procs
-    x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
-    vnc_procs=$(ux "pgrep -af 'Xtigervnc'" 2>/dev/null)
-    xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
-
-    if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ] && [ -z "$vnc_procs" ]; then
-        say_ok "Aman. Tidak ada proses GUI / VNC."
-        return 0
-    fi
-
-    echo ""
-    if [ -n "$x11_procs" ]; then
-        x11_count=$(echo "$x11_procs" | wc -l)
-        echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
-    fi
-    if [ -n "$vnc_procs" ]; then
-        echo -e "  ${DIM}▶ VNC Server (TigerVNC) aktif di Ubuntu.${NC}"
-    fi
-    if [ -n "$xfce_procs" ]; then
-        echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
-    fi
-
-    echo ""
-    echo -ne "  ${CYAN}Bersihkan semua sesi sekarang? (y/n) ❯${NC} "
-    read -r clean_choice
-    if [ "$clean_choice" == "y" ] || [ "$clean_choice" == "Y" ]; then
-        kill_ubuntu_gui
-    fi
 }
 
 check_for_update() {
@@ -794,11 +844,9 @@ show_shortcut_menu() {
         print_menu_item "1"  "Masuk Ubuntu (CLI)"
         print_menu_item "2"  "Masuk Ubuntu (GUI - XFCE4 via X11)"
         print_menu_item "3"  "Masuk Ubuntu (GUI - XFCE4 via VNC)"
-        print_menu_item "4"  "Matikan Sesi GUI / VNC"
-        print_menu_item "5"  "Status Background Proses"
-        print_menu_item "6"  "System Update"
-        print_menu_item "7"  "Diagnostic Logs"
-        print_menu_item "8"  "Pengaturan Tema Visual"
+        print_menu_item "4"  "System Update"
+        print_menu_item "5"  "Diagnostic Logs"
+        print_menu_item "6"  "Pengaturan Tema Visual"
         echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
         print_menu_item "0"  "Tutup Panel"
         echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
@@ -817,11 +865,9 @@ show_shortcut_menu() {
                 sleep 1 ;;
             2) launch_ubuntu_gui; sleep 1 ;;
             3) launch_ubuntu_vnc; sleep 1 ;;
-            4) kill_ubuntu_gui; sleep 1 ;;
-            5) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read -r; ;;
-            6) check_for_update; sleep 1 ;;
-            7) view_error_log; sleep 1 ;;
-            8) select_theme_menu; sleep 1 ;;
+            4) check_for_update; sleep 1 ;;
+            5) view_error_log; sleep 1 ;;
+            6) select_theme_menu; sleep 1 ;;
             0) echo -e "\n  ${SUCCESS} Disconnected.\n"; break ;;
             *) echo -e "\n  ${NEON_PINK}✖ Invalid syntax.${NC}"; sleep 1 ;;
         esac
