@@ -562,60 +562,6 @@ check_gui_session() {
     fi
 }
 
-quick_devtools_installer() {
-    if ! is_ubuntu_installed; then
-        say_err "Ubuntu OS belum diinstal."
-        return 1
-    fi
-
-    while true; do
-        hr
-        echo -e "  ${WHITE}DEV-TOOLS INSTALLER${NC}"
-        echo -e "  ${PURPLE}[1]${NC} ${WHITE}Full Stack${NC} ${DIM}(git, python3, nodejs, gcc, curl...)${NC}"
-        echo -e "  ${PURPLE}[2]${NC} ${WHITE}Git Only${NC}"
-        echo -e "  ${PURPLE}[3]${NC} ${WHITE}Python3 + pip${NC}"
-        echo -e "  ${PURPLE}[4]${NC} ${WHITE}Node.js + npm${NC}"
-        echo -e "  ${PURPLE}[5]${NC} ${WHITE}C/C++ Build Tools${NC}"
-        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
-        hr
-        echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read -r dev_choice # PATCH: Added -r
-
-        local pkgs=""
-        case "$dev_choice" in
-            1) pkgs="git python3 python3-pip nodejs npm build-essential curl wget vim nano" ;;
-            2) pkgs="git" ;;
-            3) pkgs="python3 python3-pip" ;;
-            4) pkgs="nodejs npm" ;;
-            5) pkgs="build-essential" ;;
-            0) break ;;
-            *) say_warn "Pilihan tidak valid."; continue ;;
-        esac
-
-        say_proc "Menyiapkan: ${pkgs}..."
-        log_section "DEV-TOOLS INSTALL ($pkgs)"
-
-        preseed_debconf_answers
-
-        run_tracked "Updating package list" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
-        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
-            say_err "Gagal update repo (exit code $LAST_JOB_STATUS). Cek koneksi & Diagnostic Logs."
-            continue
-        fi
-
-        local dev_total
-        dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
-        [ -z "$dev_total" ] && dev_total=0
-
-        run_tracked "Installing modules" "$NX_STEP_LOG" "$dev_total" -- ux "apt-get install -y $pkgs"
-        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
-            say_err "Instalasi paket gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
-            continue
-        fi
-        say_ok "Modul terpasang."
-    done
-}
-
 check_for_update() {
     say_proc "Memeriksa pembaruan..."
     local tmp_file="$NX_TEMP_DIR/.nx_code_update_tmp.sh"
@@ -741,11 +687,9 @@ show_shortcut_menu() {
         print_menu_item "2"  "Masuk Ubuntu (GUI - XFCE4)"
         print_menu_item "3"  "Matikan Sesi GUI"
         print_menu_item "4"  "Status Background Proses"
-        print_menu_item "5"  "Dev-Tools Installer"
-        print_menu_item "6"  "System Monitor (HTop)"
-        print_menu_item "7"  "System Update"
-        print_menu_item "8"  "Diagnostic Logs"
-        print_menu_item "9"  "Pengaturan Tema Visual"
+        print_menu_item "5"  "System Update"
+        print_menu_item "6"  "Diagnostic Logs"
+        print_menu_item "7"  "Pengaturan Tema Visual"
         echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
         print_menu_item "0"  "Tutup Panel"
         echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
@@ -765,11 +709,9 @@ show_shortcut_menu() {
             2) launch_ubuntu_gui; sleep 1 ;;
             3) kill_ubuntu_gui; sleep 1 ;;
             4) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read -r; ;;
-            5) quick_devtools_installer; sleep 1 ;;
-            6) htop ;;
-            7) check_for_update; sleep 1 ;;
-            8) view_error_log; sleep 1 ;;
-            9) select_theme_menu; sleep 1 ;;
+            5) check_for_update; sleep 1 ;;
+            6) view_error_log; sleep 1 ;;
+            7) select_theme_menu; sleep 1 ;;
             0) echo -e "\n  ${SUCCESS} Disconnected.\n"; break ;;
             *) echo -e "\n  ${NEON_PINK}✖ Invalid syntax.${NC}"; sleep 1 ;;
         esac
