@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.22"
+NX_CODE_VERSION="v1.0.23"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -572,17 +572,21 @@ quick_devtools_installer() {
         # --- PATCH: preseed juga di jalur ini, untuk jaga-jaga
         preseed_debconf_answers
 
-        : > "$NX_STEP_LOG"
-        (ux "apt-get update -y" > "$NX_STEP_LOG" 2>&1) &
-        show_futuristic_progress "Updating package list" $! "$NX_STEP_LOG"
+        run_tracked "Updating package list" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Gagal update repo (exit code $LAST_JOB_STATUS). Cek koneksi & Diagnostic Logs."
+            continue
+        fi
 
         local dev_total
         dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
         [ -z "$dev_total" ] && dev_total=0
 
-        : > "$NX_STEP_LOG"
-        (ux "apt-get install -y $pkgs" > "$NX_STEP_LOG" 2>&1) &
-        show_futuristic_progress "Installing modules" $! "$NX_STEP_LOG" "$dev_total"
+        run_tracked "Installing modules" "$NX_STEP_LOG" "$dev_total" -- ux "apt-get install -y $pkgs"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Instalasi paket gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
+            continue
+        fi
         say_ok "Modul terpasang."
     done
 }
