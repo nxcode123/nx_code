@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.0.23"
+NX_CODE_VERSION="v1.1.0"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -10,6 +10,12 @@ NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
+
+# --- PATCH: resolusi default sebelumnya ditulis berulang ("720x1440") di 3
+# tempat berbeda (choose_resolution x2, launch_ubuntu_gui). Sekarang jadi satu
+# sumber kebenaran tunggal.
+NX_DEFAULT_RES_W="720"
+NX_DEFAULT_RES_H="1440"
 
 # --- LOG ERROR & TEMP ---
 NX_LOG="$HOME/.nx_code_error.log"
@@ -116,7 +122,12 @@ rotate_log_if_needed() {
 #     interaktif yang membuat instalasi hang tanpa progress (stuck di 0%).
 # ==============================================================================
 ux() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1"; }
-ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>&1; }
+# --- PATCH: sebelumnya stderr dibuang total ke /dev/null di semua pemanggilan
+# "quiet". Ini bikin kegagalan non-fatal (mis. useradd gagal karena alasan lain)
+# tidak pernah tercatat di mana pun, sehingga sulit didiagnosis lewat Diagnostic
+# Logs. Sekarang stdout tetap disenyapkan (karena memang tidak perlu ditampilkan
+# ke user), tapi stderr diarahkan ke NX_LOG supaya jejaknya tetap ada.
+ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>>"$NX_LOG"; }
 # --- PATCH: ux_ok dulu identik 100% dengan ux_quiet (duplikasi kode). Sekarang
 # jadi alias murni supaya hanya ada satu implementasi yang perlu dirawat.
 ux_ok() { ux_quiet "$1"; }
@@ -289,7 +300,7 @@ choose_resolution() {
 
     case "$res_choice" in
         1)
-            echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. 720x1440) ❯${NC} "
+            echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}) ❯${NC} "
             read custom_res
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 local w="${BASH_REMATCH[1]}"
@@ -298,19 +309,19 @@ choose_resolution() {
                     RES_W="$w"
                     RES_H="$h"
                 else
-                    say_warn "Resolusi di luar batas wajar. Memakai 720x1440."
-                    RES_W="720"; RES_H="1440"
+                    say_warn "Resolusi di luar batas wajar. Memakai ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}."
+                    RES_W="$NX_DEFAULT_RES_W"; RES_H="$NX_DEFAULT_RES_H"
                 fi
             else
-                say_warn "Format tidak valid. Memakai 720x1440."
-                RES_W="720"; RES_H="1440"
+                say_warn "Format tidak valid. Memakai ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}."
+                RES_W="$NX_DEFAULT_RES_W"; RES_H="$NX_DEFAULT_RES_H"
             fi
             ;;
         2) RES_W=""; RES_H="" ;;
         0) GUI_CANCELLED=1 ;;
         *)
-            say_warn "Pilihan tidak valid, memakai 720x1440."
-            RES_W="720"; RES_H="1440"
+            say_warn "Pilihan tidak valid, memakai ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}."
+            RES_W="$NX_DEFAULT_RES_W"; RES_H="$NX_DEFAULT_RES_H"
             ;;
     esac
 }
@@ -376,8 +387,8 @@ setup_audio_server() {
 
 launch_ubuntu_gui() {
     local GUI_CANCELLED=0
-    local RES_W="720"
-    local RES_H="1440"
+    local RES_W="$NX_DEFAULT_RES_W"
+    local RES_H="$NX_DEFAULT_RES_H"
     local X11_PID
 
     if ! is_ubuntu_installed; then
@@ -487,8 +498,25 @@ WRAPEOF
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
     say_hint "Buka aplikasi 'Termux:X11' di Android."
 
+    # --- PATCH: catat PID nyata dari sesi yang baru dinyalakan (bukan pola
+    # pkill -f yang lebar), supaya kill_ubuntu_gui bisa menyudahi sesi ini
+    # secara presisi tanpa berisiko menyentuh proses lain di luar sesi ini.
+    # proot-distro TIDAK punya PID namespace sungguhan, jadi mencocokkan PID
+    # eksplisit jauh lebih aman daripada mencocokkan nama proses secara luas.
+    local session_pid=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        session_pid=$(ux "pgrep -f xfce4-session 2>/dev/null | head -n1" 2>/dev/null)
+        [ -n "$session_pid" ] && break
+        sleep 1
+    done
+    {
+        echo "X11_PID=$X11_PID"
+        echo "SESSION_PID=$session_pid"
+    } > "$NX_TEMP_DIR/.nx_gui_state"
+
     show_futuristic_progress "Sesi GUI Aktif..." "$X11_PID"
     wait "$X11_PID" 2>/dev/null
+    rm -f "$NX_TEMP_DIR/.nx_gui_state"
     say_ok "Sesi GUI ditutup."
 }
 
@@ -496,8 +524,37 @@ kill_ubuntu_gui() {
     say_proc "Terminating GUI processes..."
     local found=0
 
-    if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
-    if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
+    # --- PATCH: sebelumnya cleanup HANYA memakai pkill -f dengan pola nama
+    # proses lebar ('xfce4|dbus-launch|Xwayland'), yang berisiko menyentuh
+    # proses lain di luar sesi ini karena proot-distro tidak mengisolasi PID
+    # namespace. Sekarang diutamakan mematikan PID spesifik yang tercatat saat
+    # sesi ini dinyalakan; pola lebar hanya jadi fallback terakhir kalau state
+    # file tidak ada (mis. sesi dinyalakan di luar script ini / restart Termux).
+    if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
+        # shellcheck disable=SC1091
+        source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
+
+        if [ -n "${SESSION_PID:-}" ]; then
+            ux_ok "kill $SESSION_PID 2>/dev/null"
+            found=1
+        fi
+        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
+            kill "$X11_PID" 2>/dev/null
+            found=1
+        fi
+        rm -f "$NX_TEMP_DIR/.nx_gui_state"
+
+        # beri waktu proses berhenti dengan wajar sebelum verifikasi
+        sleep 2
+    fi
+
+    # Fallback lebar: jaring pengaman terakhir, dipakai HANYA kalau state
+    # tracking di atas tidak ada atau gagal membersihkan semuanya.
+    if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
+        say_warn "Sisa proses ditemukan, membersihkan dengan pola luas (fallback)."
+        if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
+        if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
+    fi
     if pkill -f "pulseaudio" >/dev/null 2>&1; then found=1; fi
 
     sleep 1
