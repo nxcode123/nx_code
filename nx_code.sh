@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.4.0-CleanMenu" # Updated version
+NX_CODE_VERSION="v1.4.4-PatorjkLogo"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -237,22 +237,21 @@ cyber_boot_sequence() {
 
 animate_logo() {
     command clear
-    local w=52
-    echo -e "\n  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
-    local lines=(
-        '    _   _ __  __  ____ ___  ____  _____ '
-        '   | \ | |\ \/ / / ___/ _ \|  _ \| ____|'
-        '   |  \| | \  / | |  | | | | | | |  _|  '
-        '   | |\  | /  \ | |__| |_| | |_| | |___ '
-        '   |_| \_|/_/\_\ \____\___/|____/|_____|'
-    )
-    for line in "${lines[@]}"; do
-        printf "  ${PURPLE}│${NC} ${BOLD}${CYAN}%-48s${NC} ${PURPLE}│${NC}\n" "$line"
-    done
-    printf "  ${PURPLE}│${NC} ${DIM}%-48s${NC} ${PURPLE}│${NC}\n" "               WORKSPACE TERMINAL"
-    echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
-    printf "  ${PURPLE}│${NC} ${WHITE}ST: ${NEON_GREEN}%-6s${WHITE} THM: ${NEON_PINK}%-9s${WHITE} VER: ${CYAN}%-11s${NC} ${PURPLE}│${NC}\n" "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
-    echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
+    echo -e "\033[1;36m"
+    cat << 'EOF'
+     /$$   /$$ /$$   /$$                      /$$$$$$   /$$$$$$  /$$$$$$$  /$$$$$$$$
+    | $$$ | $$| $$  / $$                     /$$__  $$ /$$__  $$| $$__  $$| $$_____/
+    | $$$$| $$|  $$/ $$/                    | $$  \__/| $$  \ $$| $$  \ $$| $$      
+    | $$ $$ $$ \  $$$$/        /$$$$$$      | $$      | $$  | $$| $$  | $$| $$$$$   
+    | $$  $$$$  >$$  $$       |______/      | $$      | $$  | $$| $$  | $$| $$__/   
+    | $$\  $$$ /$$/\  $$                    | $$    $$| $$  | $$| $$  | $$| $$      
+    | $$ \  $$| $$  \ $$                    |  $$$$$$/|  $$$$$$/| $$$$$$$/| $$$$$$$$
+    |__/  \__/|__/  |__/                     \______/  \______/ |_______/ |________/
+EOF
+    echo -e "\033[0m"
+    echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}"
+    echo -e "  ${WHITE}STATUS :${NC} ${NEON_GREEN}ONLINE${NC}  |  ${WHITE}THEME :${NC} ${NEON_PINK}${NX_CURRENT_THEME^^}${NC}  |  ${WHITE}VER :${NC} ${CYAN}${NX_CODE_VERSION}${NC}"
+    echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}\n"
 }
 
 # ==============================================================================
@@ -265,19 +264,21 @@ check_gui_session_x11() {
     x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
     xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
 
+    echo ""
     if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
-        say_ok "Aman. Tidak ada proses GUI X11 yang aktif."
-        return 0
+        say_hint "Status: KOSONG (Tidak ada proses GUI X11 yang aktif)."
+    else
+        if [ -n "$x11_procs" ]; then
+            x11_count=$(echo "$x11_procs" | wc -l)
+            echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
+        fi
+        if [ -n "$xfce_procs" ]; then
+            echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
+        fi
     fi
     echo ""
-    if [ -n "$x11_procs" ]; then
-        x11_count=$(echo "$x11_procs" | wc -l)
-        echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
-    fi
-    if [ -n "$xfce_procs" ]; then
-        echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
-    fi
-    echo ""
+    echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
+    read -r
 }
 
 kill_ubuntu_x11() {
@@ -318,13 +319,16 @@ check_gui_session_vnc() {
     local vnc_procs
     vnc_procs=$(ux "pgrep -af 'Xtigervnc'" 2>/dev/null)
 
+    echo ""
     if [ -z "$vnc_procs" ]; then
-        say_ok "Aman. Tidak ada proses VNC yang aktif."
-        return 0
+        say_hint "Status: KOSONG (Tidak ada proses VNC yang aktif)."
+    else
+        echo -e "  ${DIM}▶ VNC Server (TigerVNC) aktif di Ubuntu:${NC}"
+        echo -e "    ${WHITE}$vnc_procs${NC}"
     fi
     echo ""
-    echo -e "  ${DIM}▶ VNC Server (TigerVNC) aktif di Ubuntu.${NC}"
-    echo ""
+    echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
+    read -r
 }
 
 kill_ubuntu_vnc() {
@@ -527,6 +531,11 @@ setup_xfce4_env() {
     if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
         ux_ok "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png"
     fi
+
+    say_proc "Menyiapkan subsistem DBus (Andronix Fix)..."
+    ux_ok "rm -f /var/lib/dbus/machine-id && dbus-uuidgen > /var/lib/dbus/machine-id 2>/dev/null"
+    ux_ok "mkdir -p /var/run/dbus"
+
     return 0
 }
 
@@ -551,19 +560,23 @@ setup_vnc_server() {
 
     say_proc "Menyiapkan konfigurasi VNC..."
     ux_quiet "
-        mkdir -p /home/$NX_USER/.vnc
+        mkdir -p /home/\$NX_USER/.config/tigervnc
         echo '#!/bin/bash
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
 export PULSE_SERVER=tcp:127.0.0.1:4713
 export NO_AT_BRIDGE=1
 export LIBGL_ALWAYS_SOFTWARE=1
+
 (sleep 3 && xfconf-query -c xfwm4 -p /general/use_compositing -s false >/dev/null 2>&1) &
-dbus-launch --exit-with-session startxfce4 &' > /home/$NX_USER/.vnc/xstartup
-        chmod +x /home/$NX_USER/.vnc/xstartup
-        echo 'nxcode' | vncpasswd -f > /home/$NX_USER/.vnc/passwd
-        chmod 600 /home/$NX_USER/.vnc/passwd
-        chown -R $NX_USER:$NX_USER /home/$NX_USER/.vnc
+
+exec dbus-launch --exit-with-session startxfce4' > /home/\$NX_USER/.config/tigervnc/xstartup
+        chmod +x /home/\$NX_USER/.config/tigervnc/xstartup
+        echo 'nxcode' | vncpasswd -f > /home/\$NX_USER/.config/tigervnc/passwd
+        chmod 600 /home/\$NX_USER/.config/tigervnc/passwd
+        
+        rm -rf /home/\$NX_USER/.vnc 2>/dev/null
+        chown -R \$NX_USER:\$NX_USER /home/\$NX_USER/.config
     "
     return 0
 }
@@ -698,11 +711,12 @@ launch_ubuntu_vnc() {
     log_section "VNC LAUNCH (display :1)"
     
     ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
-    ux_ok "rm -rf /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null"
+    ux_ok "rm -rf /tmp/.X1-lock /tmp/.X11-unix/X1 /tmp/.ICE-unix 2>/dev/null"
+    ux_ok "mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix"
     
     termux-wake-lock
     
-    ux "su - $NX_USER -c 'USER=$NX_USER vncserver :1 -geometry ${vnc_w}x${vnc_h} -depth 24 -localhost no'" >> "$NX_LOG" 2>&1
+    ux "su - $NX_USER -c 'export USER=$NX_USER && export HOME=/home/$NX_USER && vncserver :1 -geometry ${vnc_w}x${vnc_h} -depth 24 -name nxcode-desktop -localhost no'" >> "$NX_LOG" 2>&1
     
     local vnc_pid
     vnc_pid=$(ux "pgrep -f 'Xtigervnc :1'" 2>/dev/null)
