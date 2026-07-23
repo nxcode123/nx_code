@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
-# [1] KONFIGURASI GLOBAL & SISTEM MODULAR GITHUB
+# [1] KONFIGURASI GLOBAL & SISTEM MODULAR (TEMA, BAHASA, JARINGAN)
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
@@ -13,26 +13,20 @@ NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/the
 NX_LANG_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/lang/lang.list"
 NX_LANG_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/lang"
 
-# Konfigurasi Logo GitHub
-NX_LOGOS_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/logos/logo.list"
-NX_LOGOS_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/logos"
-
-NX_VERSION="v1.1.7"
+NX_VERSION="v1.1.6"
 NX_USER="nxuser"
 NX_CURL_OPTS="-fsSL --connect-timeout 5 --max-time 10 --retry 2"
 
 THEME_DIR="$HOME/.nx_code/themes"
 LANG_DIR="$HOME/.nx_code/lang"
-LOGOS_DIR="$HOME/.nx_code/logos"
 CONFIG_FILE="$HOME/.nx_code/config"
 
 init_system_modules() {
-    mkdir -p "$THEME_DIR" "$LANG_DIR" "$LOGOS_DIR"
+    mkdir -p "$THEME_DIR" "$LANG_DIR"
 
     # Default konfigurasi
     ACTIVE_THEME="cyberpunk"
     ACTIVE_LANG="id"
-    ACTIVE_LOGO="classic"
     DEBUG_MODE="off"
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
@@ -40,7 +34,9 @@ init_system_modules() {
 
     # 1. Inisialisasi Tema
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
-    [ ! -f "$theme_file" ] && curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
+    if [ ! -f "$theme_file" ]; then
+        curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
+    fi
     if [ ! -s "$theme_file" ]; then
         ACTIVE_THEME="cyberpunk"
         theme_file="$THEME_DIR/cyberpunk.sh"
@@ -52,32 +48,25 @@ init_system_modules() {
 
     # 2. Inisialisasi Bahasa
     local lang_file="$LANG_DIR/$ACTIVE_LANG.sh"
-    [ ! -f "$lang_file" ] && curl $NX_CURL_OPTS "$NX_LANG_BASE_URL/$ACTIVE_LANG.sh" -o "$lang_file" 2>/dev/null
+    if [ ! -f "$lang_file" ]; then
+        curl $NX_CURL_OPTS "$NX_LANG_BASE_URL/$ACTIVE_LANG.sh" -o "$lang_file" 2>/dev/null
+    fi
     if [ ! -s "$lang_file" ]; then
         ACTIVE_LANG="id"
         lang_file="$LANG_DIR/id.sh"
         [ ! -f "$lang_file" ] && curl $NX_CURL_OPTS "$NX_LANG_BASE_URL/id.sh" -o "$lang_file" 2>/dev/null
     fi
-    [ -f "$lang_file" ] && source "$lang_file"
 
-    # 3. Inisialisasi Logo ASCII
-    local logo_file="$LOGOS_DIR/$ACTIVE_LOGO.sh"
-    [ ! -f "$logo_file" ] && curl $NX_CURL_OPTS "$NX_LOGOS_BASE_URL/$ACTIVE_LOGO.sh" -o "$logo_file" 2>/dev/null
-    if [ ! -s "$logo_file" ]; then
-        ACTIVE_LOGO="classic"
-        logo_file="$LOGOS_DIR/classic.sh"
-        [ ! -f "$logo_file" ] && curl $NX_CURL_OPTS "$NX_LOGOS_BASE_URL/classic.sh" -o "$logo_file" 2>/dev/null
-    fi
-    if [ -f "$logo_file" ]; then
-        source "$logo_file"
+    if [ -f "$lang_file" ]; then
+        source "$lang_file"
     else
-        LOGO_LINES=(
-            "  _   _ __  __       ____ ___  ____  _____ "
-            " | \ | |\ \/ /      / ___/ _ \|  _ \| ____|"
-            " |  \| | \  /  _____| |  | | | | | | |  _|  "
-            " | |\  | /  \ |_____| |__| |_| | |_| | |___ "
-            " |_| \_|/_/\_\       \____\___/|____/|_____| TERMINAL"
-        )
+        # Fallback teks bawaan jika bahasa gagal dimuat
+        TXT_STATUS="STATUS"; TXT_ONLINE="ONLINE"; TXT_THEME="TEMA"; TXT_LANG="LANG"
+        TXT_COMPLETED="SELESAI"; TXT_MENU_TITLE="NX_CODE CONTROL CENTER"
+        TXT_MENU_1="Ubuntu CLI Core"; TXT_MENU_2="Ubuntu GUI (XFCE4 via Termux:X11)"
+        TXT_MENU_3="Kill Active GUI Session"; TXT_MENU_4="Ganti Tema Interface"
+        TXT_MENU_5="Ganti Bahasa (Language)"; TXT_MENU_6="Check for System Updates"
+        TXT_MENU_7="Toggle Debug Mode"; TXT_MENU_0="Exit to Terminal"; TXT_SELECT="Pilih Opsi"
     fi
 
     SUCCESS="${NEON_GREEN}[✔]${NC}"
@@ -89,7 +78,6 @@ init_system_modules
 save_config() {
     echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
     echo "ACTIVE_LANG=\"$ACTIVE_LANG\"" >> "$CONFIG_FILE"
-    echo "ACTIVE_LOGO=\"$ACTIVE_LOGO\"" >> "$CONFIG_FILE"
     echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
 }
 
@@ -99,13 +87,20 @@ save_config() {
 animate_logo() {
     command clear
     echo -e "${NEON_PINK}╔══════════════════════════════════════════════════════╗${NC}"
-    for line in "${LOGO_LINES[@]}"; do
+    local lines=(
+        "  _   _ __  __       ____ ___  ____  _____ "
+        " | \ | |\ \/ /      / ___/ _ \|  _ \| ____|"
+        " |  \| | \  /  _____| |  | | | | | | |  _|  "
+        " | |\  | /  \ |_____| |__| |_| | |_| | |___ "
+        " |_| \_|/_/\_\       \____\___/|____/|_____| TERMINAL"
+    )
+    for line in "${lines[@]}"; do
         printf "${PURPLE}%s${NC}\r" "$line"
-        sleep 0.02
+        sleep 0.03
         printf "${CYAN}%s${NC}\n" "$line"
     done
     echo -e "${NEON_PINK}╠══════════════════════════════════════════════════════╣${NC}"
-    echo -e "${WHITE} STATUS: ${NEON_GREEN}ONLINE${WHITE} │ THEME: ${NEON_PINK}${ACTIVE_THEME^^}${WHITE} │ LOGO: ${CYAN}${ACTIVE_LOGO^^}${NC}"
+    echo -e "${WHITE} ${TXT_STATUS}: ${NEON_GREEN}ONLINE${WHITE} │ ${TXT_THEME}: ${NEON_PINK}${ACTIVE_THEME^^}${WHITE} │ ${TXT_LANG}: ${CYAN}${ACTIVE_LANG^^}${NC}"
     echo -e "${NEON_PINK}╚══════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -136,7 +131,7 @@ show_live_progress() {
     local end_time=$(date +%s)
     local elapsed=$((end_time - start_time))
 
-    printf "\r\033[2K${SUCCESS} ${WHITE}%-18s${NC} ${CYAN}│${NC} ${NEON_GREEN}COMPLETED${NC}                       ${CYAN}(%ds)${NC}\n" \
+    printf "\r\033[2K${SUCCESS} ${WHITE}%-18s${NC} ${CYAN}│${NC} ${NEON_GREEN}${TXT_COMPLETED^^}${NC}                   ${CYAN}(%ds)${NC}\n" \
         "$msg" "$elapsed"
     echo -ne "\033[?25h"
 }
@@ -166,13 +161,14 @@ is_storage_setup() { [ -d "$HOME/storage/shared" ]; }
 ensure_storage_setup() {
     if ! is_storage_setup; then
         echo -e "\n${NEON_PINK}[SYS]${NC} ${WHITE}Meminta izin akses Shared Storage...${NC}"
+        echo -e "${PURPLE}      Perhatikan layar perangkat Anda dan pilih 'Allow / Izinkan'.${NC}"
         termux-setup-storage
         sleep 2
     fi
 }
 
 # ==============================================================================
-# [4] GUI MANAGEMENT, THEMES, LANGUAGES & LOGOS SWITCHER
+# [4] GUI MANAGEMENT, THEMES & LANGUAGE SWITCHER
 # ==============================================================================
 setup_nonroot_user() {
     proot-distro login ubuntu -- bash -c "
@@ -367,47 +363,6 @@ change_language_menu() {
     done
 }
 
-change_logo_menu() {
-    local manifest="$HOME/.nx_logo_manifest.tmp"
-    rm -f "$manifest"
-    if ! curl $NX_CURL_OPTS "$NX_LOGOS_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
-        echo -e "classic|Classic Terminal Logo\nmatrix|Matrix Green Logo\ncyber|Cyberpunk Minimal Logo" > "$manifest"
-    fi
-
-    local l_names=() l_descs=()
-    while IFS='|' read -r l_name l_desc; do
-        [ -z "$l_name" ] && continue
-        l_names+=("$l_name"); l_descs+=("${l_desc:-Custom Logo}")
-    done < "$manifest"
-    rm -f "$manifest"
-
-    while true; do
-        animate_logo
-        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
-        echo -e "${WHITE}PILIH LOGO & ASCII ART${NC}"
-        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
-        for i in "${!l_names[@]}"; do
-            local marker=" "; [ "$ACTIVE_LOGO" == "${l_names[$i]}" ] && marker="[✔]"
-            printf " ${PURPLE}[%d]${NC} ${WHITE}%-12s${NC} ${CYAN}│ %s${NC} ${NEON_GREEN}%s${NC}\n" "$((i+1))" "${l_names[$i]}" "${l_descs[$i]}" "$marker"
-        done
-        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
-        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
-        echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"; read lg_choice
-        [ "$lg_choice" == "0" ] && break
-
-        local idx=$((lg_choice - 1))
-        if [ -n "${l_names[$idx]:-}" ]; then
-            ACTIVE_LOGO="${l_names[$idx]}"
-            local logo_file="$LOGOS_DIR/$ACTIVE_LOGO.sh"
-            [ ! -f "$logo_file" ] && curl $NX_CURL_OPTS "$NX_LOGOS_BASE_URL/$ACTIVE_LOGO.sh" -o "$logo_file" 2>/dev/null
-            sed -i 's/\xc2\xa0/ /g' "$logo_file" 2>/dev/null
-            save_config
-            source "$logo_file"
-            echo -e "\n${SUCCESS} ${WHITE}Logo diubah ke: ${NEON_PINK}$ACTIVE_LOGO${NC}"; sleep 1
-        fi
-    done
-}
-
 toggle_debug_mode() {
     if [ "$DEBUG_MODE" == "on" ]; then
         DEBUG_MODE="off"; set +x
@@ -468,9 +423,8 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[3]${NC} ${WHITE}${TXT_MENU_3}${NC}"
     echo -e " ${PURPLE}[4]${NC} ${WHITE}${TXT_MENU_4}${NC}"
     echo -e " ${PURPLE}[5]${NC} ${WHITE}${TXT_MENU_5}${NC}"
-    echo -e " ${PURPLE}[6]${NC} ${WHITE}Ganti Logo Art (Logo Switcher)${NC}"
-    echo -e " ${PURPLE}[7]${NC} ${WHITE}${TXT_MENU_6}${NC}"
-    echo -e " ${PURPLE}[8]${NC} ${WHITE}${TXT_MENU_7} (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
+    echo -e " ${PURPLE}[6]${NC} ${WHITE}${TXT_MENU_6}${NC}"
+    echo -e " ${PURPLE}[7]${NC} ${WHITE}${TXT_MENU_7} (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
     echo -e " ${PURPLE}[0]${NC} ${WHITE}${TXT_MENU_0}${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
@@ -486,9 +440,8 @@ show_shortcut_menu() {
         3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         4) change_theme_menu; sleep 1; show_shortcut_menu ;;
         5) change_language_menu; sleep 1; show_shortcut_menu ;;
-        6) change_logo_menu; sleep 1; show_shortcut_menu ;;
-        7) check_for_update; sleep 1; show_shortcut_menu ;;
-        8) toggle_debug_mode; sleep 1; show_shortcut_menu ;;
+        6) check_for_update; sleep 1; show_shortcut_menu ;;
+        7) toggle_debug_mode; sleep 1; show_shortcut_menu ;;
         0) echo -e "\n${NEON_GREEN}[➔] Keluar.${NC}\n" ;;
         *) echo -e "\n${NEON_PINK}[!] Invalid.${NC}"; sleep 1; show_shortcut_menu ;;
     esac
