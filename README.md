@@ -40,6 +40,10 @@ https://github.com/termux/termux-x11/releases
 
 curl -sSL https://raw.githubusercontent.com/nxcode123/nx_code/main/install.sh | bash
 
+* atau
+
+bash <(curl -s https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh)
+
 ---
 
 ## Fitur & Modul Utama Setelah Terpasang
