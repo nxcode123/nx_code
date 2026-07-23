@@ -6,11 +6,9 @@
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
-NX_VERSION="v1.1.4"
+NX_VERSION="v1.1.5"
 NX_USER="nxuser"
 
-# Standar industri untuk curl: Fail silently, show error, follow redirects,
-# batasan waktu koneksi (5s), batas total waktu (10s), dan retry otomatis (2x).
 NX_CURL_OPTS="-fsSL --connect-timeout 5 --max-time 10 --retry 2"
 
 THEME_DIR="$HOME/.nx_code/themes"
@@ -19,22 +17,18 @@ CONFIG_FILE="$HOME/.nx_code/config"
 init_theme_system() {
     mkdir -p "$THEME_DIR"
 
-    # Muat konfigurasi tema & debug aktif (default: cyberpunk, debug off)
     ACTIVE_THEME="cyberpunk"
     DEBUG_MODE="off"
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
-    # Aktifkan trace bash jika debug mode 'on'
     [ "$DEBUG_MODE" == "on" ] && set -x
 
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
 
-    # Jika file tema lokal belum ada, unduh dari GitHub menggunakan optimized curl
     if [ ! -f "$theme_file" ]; then
         curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
     fi
 
-    # Fallback ke cyberpunk jika file kosong/gagal
     if [ ! -s "$theme_file" ]; then
         ACTIVE_THEME="cyberpunk"
         theme_file="$THEME_DIR/cyberpunk.sh"
@@ -43,7 +37,6 @@ init_theme_system() {
         fi
     fi
 
-    # Load file tema
     if [ -f "$theme_file" ]; then
         source "$theme_file"
     else
@@ -62,11 +55,11 @@ init_theme_system() {
 init_theme_system
 
 # ==============================================================================
-# [2] CORE UTILITIES (UI & LIVE PROGRESS)
+# [2] CORE UTILITIES (ELEGANT UI & FLICKER-FREE LIVE PROGRESS)
 # ==============================================================================
 animate_logo() {
     command clear
-    echo -e "${NEON_PINK}======================================================${NC}"
+    echo -e "${NEON_PINK}╔══════════════════════════════════════════════════════╗${NC}"
     local lines=(
         "  _   _ __  __       ____ ___  ____  _____ "
         " | \ | |\ \/ /      / ___/ _ \|  _ \| ____|"
@@ -76,15 +69,16 @@ animate_logo() {
     )
     for line in "${lines[@]}"; do
         printf "${PURPLE}%s${NC}\r" "$line"
-        sleep 0.04
+        sleep 0.03
         printf "${CYAN}%s${NC}\n" "$line"
     done
-    echo -e "${PURPLE}------------------------------------------------------${NC}"
-    echo -e "${WHITE} STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${ACTIVE_THEME}${WHITE} | DEBUG: ${NEON_PINK}${DEBUG_MODE^^}${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
+    echo -e "${NEON_PINK}╠══════════════════════════════════════════════════════╣${NC}"
+    echo -e "${WHITE} STATUS: ${NEON_GREEN}ONLINE${WHITE}  │  THEME: ${NEON_PINK}${ACTIVE_THEME^^}${WHITE}  │  VER: ${CYAN}${NX_VERSION}${NC}"
+    echo -e "${NEON_PINK}╚══════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
+# Progress bar super mulus, tanpa tumpang tindih, dengan pemotongan teks aman
 show_live_progress() {
     local msg="$1"
     local pid="$2"
@@ -93,27 +87,30 @@ show_live_progress() {
     local i=0
     local start_time=$(date +%s)
 
-    echo -ne "\033[?25l"
+    echo -ne "\033[?25l" # Sembunyikan kursor
     while kill -0 "$pid" 2>/dev/null; do
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
 
         local last_line=""
         if [ -f "$log_file" ]; then
-            last_line=$(tail -n 1 "$log_file" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\n\r' | cut -c 1-28)
+            last_line=$(tail -n 1 "$log_file" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\n\r' | cut -c 1-22)
         fi
 
-        printf "\r\033[2K${PROCESS} ${CYAN}%-20s ${NEON_PINK}%s ${PURPLE}[%s] (%ds)${NC}" "$msg" "${spinner[$i]}" "$last_line" "$elapsed"
+        # Format rapi: [Spinner] Pesan (Log Terakhir) [Waktu]
+        printf "\r\033[2K${NEON_PINK}%s${NC} ${WHITE}%-18s${NC} ${CYAN}│${NC} ${PURPLE}%-22s${NC} ${CYAN}(%ds)${NC}" \
+            "${spinner[$i]}" "$msg" "$last_line" "$elapsed"
 
-        i=$(( (i + 1) % 10 ))
+        i=$(( (i + 1) % ${#spinner[@]} ))
         sleep 0.1
     done
 
     local end_time=$(date +%s)
     local elapsed=$((end_time - start_time))
 
-    printf "\r\033[2K${SUCCESS} ${WHITE}%-20s ${NEON_GREEN}[DONE] ${PURPLE}(%ds)${NC}\n" "$msg" "$elapsed"
-    echo -ne "\033[?25h"
+    printf "\r\033[2K${SUCCESS} ${WHITE}%-18s${NC} ${CYAN}│${NC} ${NEON_GREEN}COMPLETED${NC}                       ${CYAN}(%ds)${NC}\n" \
+        "$msg" "$elapsed"
+    echo -ne "\033[?25h" # Munculkan kembali kursor
 }
 
 execute_task() {
@@ -143,8 +140,8 @@ is_storage_setup() { [ -d "$HOME/storage/shared" ]; }
 
 ensure_storage_setup() {
     if ! is_storage_setup; then
-        echo -e "\n${PROCESS} ${CYAN}Konfigurasi Storage otomatis terdeteksi belum aktif...${NC}"
-        echo -e "${PURPLE}[!] Perhatikan layar HP Anda dan pilih 'Allow / Izinkan' jika muncul pop-up izin penyimpanan.${NC}"
+        echo -e "\n${NEON_PINK}[SYS]${NC} ${WHITE}Meminta izin akses Shared Storage...${NC}"
+        echo -e "${PURPLE}      Perhatikan layar perangkat Anda dan pilih 'Allow / Izinkan'.${NC}"
         termux-setup-storage
         sleep 2
     fi
@@ -165,24 +162,24 @@ setup_nonroot_user() {
 
 choose_resolution() {
     GUI_CANCELLED=0
-    echo -e "\n${PURPLE}------------------------------------------------------${NC}"
-    echo -e "${WHITE}Pilih resolusi layar GUI:${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
-    echo -e " ${PURPLE}[2]${NC} ${WHITE}Native${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kembali ke menu utama${NC}"
-    echo -e "${PURPLE}------------------------------------------------------${NC}"
-    echo -ne "${CYAN}[?] Pilihan:${NC} "
+    echo -e "\n${PURPLE}──────────────────────────────────────────────────────${NC}"
+    echo -e "${WHITE}Pilih Resolusi Tampilan GUI:${NC}"
+    echo -e " ${PURPLE}[1]${NC} ${WHITE}Custom Resolution${NC}"
+    echo -e " ${PURPLE}[2]${NC} ${WHITE}Native Display${NC}"
+    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kembali ke Menu Utama${NC}"
+    echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
+    echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
     read res_choice
 
     case "$res_choice" in
         1)
-            echo -ne "${CYAN}[?] Masukkan resolusi (format WIDTHxHEIGHT, mis. 720x1440):${NC} "
+            echo -ne "${CYAN}[?] Masukkan resolusi (WIDTHxHEIGHT, mis. 720x1440): ${NC}"
             read custom_res
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 RES_W="${BASH_REMATCH[1]}"
                 RES_H="${BASH_REMATCH[2]}"
             else
-                echo -e "${NEON_PINK}[!] Format tidak valid. Pakai default 720x1440.${NC}"
+                echo -e "${NEON_PINK}[!] Format tidak valid. Menggunakan default 720x1440.${NC}"
                 RES_W="720"; RES_H="1440"
             fi
             ;;
@@ -216,16 +213,16 @@ EOF
 
 launch_ubuntu_gui() {
     if ! is_ubuntu_installed || ! is_termux_x11_installed; then
-        echo -e "\n${NEON_PINK}[X] Error: OS atau Termux:X11 belum terinstal sempurna.${NC}"
+        echo -e "\n${NEON_PINK}[ERR] Ubuntu OS atau Termux:X11 belum terinstal sempurna.${NC}"
         return 1
     fi
 
     if ! is_xfce4_installed; then
-        echo -e "\n${PURPLE}[!] Proses instalasi Desktop Environment butuh waktu tergantung koneksi...${NC}"
-        execute_task "Menginstal XFCE4..." proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata -y"
+        echo -e "\n${PURPLE}[SYS] XFCE4 belum terdeteksi. Memulai instalasi lingkungan desktop...${NC}"
+        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata -y"
 
         if ! is_xfce4_installed; then
-            echo -e "${NEON_PINK}[X] Instalasi gagal. Periksa koneksi internet.${NC}"
+            echo -e "${NEON_PINK}[ERR] Instalasi XFCE4 gagal. Periksa koneksi internet.${NC}"
             return 1
         fi
     fi
@@ -235,17 +232,17 @@ launch_ubuntu_gui() {
     fi
 
     if ! is_nonroot_user_setup; then
-        execute_task "Konfigurasi User..." setup_nonroot_user
+        execute_task "Konfigurasi User" setup_nonroot_user
     fi
 
     choose_resolution
-    [ "$GUI_CANCELLED" -eq 1 ] && { echo -e "\n${NEON_GREEN}[➔] Dibatalkan.${NC}"; return 0; }
+    [ "$GUI_CANCELLED" -eq 1 ] && { echo -e "\n${NEON_GREEN}[➔] Sesi dibatalkan.${NC}"; return 0; }
 
     write_gui_startup_script
     pkill -f "termux-x11" >/dev/null 2>&1
     sleep 1
 
-    echo -e "\n${PROCESS} ${CYAN}Booting X11 Server & XFCE4...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Menyalakan X11 Display Server & XFCE4...${NC}"
     local launch_user="--user $NX_USER"
     ! is_nonroot_user_setup && launch_user=""
 
@@ -260,25 +257,29 @@ WRAPEOF
     sleep 2
 
     if ! kill -0 "$X11_PID" 2>/dev/null; then
-        echo -e "${NEON_PINK}[X] Gagal menyalakan X11 Server.${NC}"
+        echo -e "${NEON_PINK}[ERR] Gagal menginisialisasi server X11.${NC}"
         return 1
     fi
 
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
-    echo -e "${PROCESS} ${CYAN}Buka aplikasi Termux:X11 jika tidak muncul otomatis.${NC}\n"
+    echo -e "${PROCESS} ${CYAN}Membuka aplikasi Termux:X11 secara otomatis...${NC}\n"
 
-    show_live_progress "GUI Active (Termux:X11)" "$X11_PID" "/dev/null"
+    show_live_progress "GUI Session Active" "$X11_PID" "/dev/null"
     wait "$X11_PID" 2>/dev/null
-    echo -e "\n${NEON_GREEN}[➔] Sesi GUI tertutup.${NC}"
+    echo -e "\n${NEON_GREEN}[➔] Sesi GUI telah ditutup.${NC}"
 }
 
 kill_ubuntu_gui() {
-    echo -e "\n${PROCESS} ${CYAN}Terminating GUI Sessions...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Menghentikan seluruh proses GUI yang aktif...${NC}"
     local found=0
     if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
     if proot-distro login ubuntu -- bash -c "pkill -f 'xfce4|dbus-launch|Xwayland'" >/dev/null 2>&1; then found=1; fi
     sleep 1
-    if [ "$found" -eq 1 ]; then echo -e "${SUCCESS} ${WHITE}Sesi dihentikan.${NC}"; else echo -e "${NEON_PINK}[X]${NC} ${WHITE}Tidak ada sesi berjalan.${NC}"; fi
+    if [ "$found" -eq 1 ]; then
+        echo -e "${SUCCESS} ${WHITE}Sesi GUI berhasil dihentikan sepenuhnya.${NC}"
+    else
+        echo -e "${NEON_PINK}[i]${NC} ${WHITE}Tidak ada sesi GUI yang sedang berjalan.${NC}"
+    fi
 }
 
 change_theme_menu() {
@@ -299,20 +300,20 @@ change_theme_menu() {
 
     while true; do
         animate_logo
-        echo -e "${PURPLE}------------------------------------------------------${NC}"
-        echo -e "${WHITE}PILIH TEMA INTERFACE (DARI theme.list GITHUB)${NC}"
-        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
+        echo -e "${WHITE}PILIH TEMA INTERFACE (CLOUD REPO)${NC}"
+        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
 
         for i in "${!t_names[@]}"; do
             local name="${t_names[$i]}"
             local desc="${t_descs[$i]}"
             local marker=" "
             [ "$ACTIVE_THEME" == "$name" ] && marker="[✔]"
-            printf " ${PURPLE}[%d]${NC} ${WHITE}%-12s${NC} ${CYAN}- %s${NC} ${NEON_GREEN}%s${NC}\n" "$((i+1))" "$name" "$desc" "$marker"
+            printf " ${PURPLE}[%d]${NC} ${WHITE}%-12s${NC} ${CYAN}│ %s${NC} ${NEON_GREEN}%s${NC}\n" "$((i+1))" "$name" "$desc" "$marker"
         done
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke Menu Utama${NC}"
-        echo -e "${PURPLE}------------------------------------------------------${NC}"
-        echo -ne "${CYAN}[?] Pilih nomor tema:${NC} "
+        echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
+        echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
         read t_choice
 
         if [ "$t_choice" == "0" ]; then
@@ -325,7 +326,7 @@ change_theme_menu() {
             local theme_file="$THEME_DIR/$chosen.sh"
 
             if [ ! -f "$theme_file" ]; then
-                echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh' dari GitHub...${NC}"
+                echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh'...${NC}"
                 curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
                 sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null
             fi
@@ -334,11 +335,11 @@ change_theme_menu() {
                 ACTIVE_THEME="$chosen"
                 echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
                 echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
-                echo -e "\n${SUCCESS} ${WHITE}Tema berhasil diubah ke: ${NEON_PINK}$chosen${NC}"
+                echo -e "\n${SUCCESS} ${WHITE}Tema aktif diubah ke: ${NEON_PINK}$chosen${NC}"
                 sleep 1
                 source "$theme_file"
             else
-                echo -e "\n${NEON_PINK}[!] Gagal mengunduh file tema. Periksa koneksi internet.${NC}"
+                echo -e "\n${NEON_PINK}[ERR] Gagal mengunduh tema. Periksa koneksi internet.${NC}"
                 sleep 1
             fi
         else
@@ -352,11 +353,11 @@ toggle_debug_mode() {
     if [ "$DEBUG_MODE" == "on" ]; then
         DEBUG_MODE="off"
         set +x
-        echo -e "\n${NEON_PINK}[!] Debug Mode DIMATIKAN.${NC}"
+        echo -e "\n${NEON_PINK}[SYS] Debug Mode dimatikan.${NC}"
     else
         DEBUG_MODE="on"
         set -x
-        echo -e "\n${NEON_GREEN}[✔] Debug Mode DIHIDUPKAN (Trace aktif).${NC}"
+        echo -e "\n${NEON_GREEN}[SYS] Debug Mode diaktifkan (Trace aktif).${NC}"
     fi
 
     echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
@@ -374,26 +375,26 @@ run_auto_cleaner() {
     [ -f "$last_clean_file" ] && last_clean=$(cat "$last_clean_file" 2>/dev/null)
 
     if [ "$today" != "$last_clean" ]; then
-        execute_task "Auto-Cleaner Storage" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
+        execute_task "System Storage Clean" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
         echo "$today" > "$last_clean_file"
     fi
 }
 
 check_for_update() {
-    echo -e "\n${PROCESS} ${CYAN}Checking GitHub Repository...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Memeriksa pembaruan dari repository...${NC}"
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
 
     if ! curl $NX_CURL_OPTS "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null || [ ! -s "$tmp_file" ]; then
-        echo -e "${NEON_PINK}[X] Gagal/File kosong. Periksa koneksi internet.${NC}"
+        echo -e "${NEON_PINK}[ERR] Gagal mengambil pembaruan. Periksa koneksi internet.${NC}"
         rm -f "$tmp_file"; return 1
     fi
 
     if diff -q "$tmp_file" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-        echo -e "${SUCCESS} ${WHITE}Sistem sudah mutakhir.${NC}"
+        echo -e "${SUCCESS} ${WHITE}Sistem sudah menggunakan versi terbaru.${NC}"
         rm -f "$tmp_file"; return 0
     fi
 
-    echo -e "${SUCCESS} ${WHITE}Update dipasang! Merestart sistem...${NC}"
+    echo -e "${SUCCESS} ${WHITE}Pembaruan ditemukan! Menerapkan patch...${NC}"
     mv "$tmp_file" "$HOME/nx_code.sh"
     sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null
     chmod +x "$HOME/nx_code.sh"
@@ -420,33 +421,33 @@ copy_self_to_home() {
 # ==============================================================================
 show_shortcut_menu() {
     animate_logo
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e "${WHITE}             NX_CODE MENU ${NX_VERSION}              ${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
+    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+    echo -e "${WHITE}               NX_CODE CONTROL CENTER                 ${NC}"
+    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+    echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI Core${NC}"
     echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI${NC}"
+    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI Session${NC}"
     echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
-    echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for Updates${NC}"
+    echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for System Updates${NC}"
     echo -e " ${PURPLE}[6]${NC} ${WHITE}Toggle Debug Mode (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit Interface${NC}"
-    echo -e "${NEON_PINK}======================================================${NC}"
-    echo -ne "${CYAN}[?] Select Option:${NC} "
+    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+    echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
+    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+    echo -ne "${CYAN}[?] Select Option ➔ ${NC}"
     read pilihan
 
     case $pilihan in
         1)
-            echo -e "\n${PROCESS} ${CYAN}Booting Core OS...${NC}"; sleep 1
-            is_ubuntu_installed && proot-distro login ubuntu || echo -e "${NEON_PINK}[X] Error: OS belum terinstal.${NC}"
+            echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI...${NC}"; sleep 1
+            is_ubuntu_installed && proot-distro login ubuntu || echo -e "${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
             ;;
         2) launch_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         4) change_theme_menu; sleep 1; show_shortcut_menu ;;
         5) check_for_update; sleep 1; show_shortcut_menu ;;
         6) toggle_debug_mode; sleep 1; show_shortcut_menu ;;
-        0) echo -e "\n${NEON_GREEN}[➔] System Standby.${NC}\n" ;;
-        *) echo -e "\n\033[1;95m[!] ALERT: INVALID DIRECTIVE.\033[0m"; sleep 1; show_shortcut_menu ;;
+        0) echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n" ;;
+        *) echo -e "\n${NEON_PINK}[!] Pilihan tidak valid, silakan coba lagi.${NC}"; sleep 1; show_shortcut_menu ;;
     esac
 }
 
@@ -457,22 +458,22 @@ case "$1" in
     --ui-only)
         animate_logo
 
-        echo -ne "${CYAN}Syncing database...... ${NC}"
+        echo -ne "${CYAN}[SYS] Syncing database...... ${NC}"
         echo -e "${NEON_GREEN}[✔] Clear${NC}"
 
-        echo -ne "${CYAN}Ubuntu Integrity...... ${NC}"
+        echo -ne "${CYAN}[SYS] Ubuntu Integrity...... ${NC}"
         is_ubuntu_installed && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Missing${NC}"
 
-        echo -ne "${CYAN}Storage Access........ ${NC}"
+        echo -ne "${CYAN}[SYS] Storage Access........ ${NC}"
         if is_storage_setup; then
             echo -e "${NEON_GREEN}[✔] Ready${NC}"
         else
-            echo -e "${NEON_PINK}[X] Auto-Triggering Setup...${NC}"
+            echo -e "${NEON_PINK}[X] Triggering Storage Setup...${NC}"
             termux-setup-storage
         fi
 
         run_auto_cleaner
-        echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk mengakses interface kontrol.${NC}\n"
+        echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk membuka control center.${NC}\n"
         exit 0
         ;;
 esac
@@ -485,19 +486,19 @@ animate_logo
 
 ensure_storage_setup
 
-execute_task "Updating Repos..." pkg update -y -o Dpkg::Options::="--force-confold"
-execute_task "Upgrading Core..." pkg upgrade -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploy Hypervisor..." pkg install proot-distro coreutils -y -o Dpkg::Options::="--force-confold"
-execute_task "Add X11 Repo..." pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploy X11 Server..." pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
+execute_task "Updating Repos" pkg update -y -o Dpkg::Options::="--force-confold"
+execute_task "Upgrading Core" pkg upgrade -y -o Dpkg::Options::="--force-confold"
+execute_task "Deploy Hypervisor" pkg install proot-distro coreutils -y -o Dpkg::Options::="--force-confold"
+execute_task "Add X11 Repo" pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
+execute_task "Deploy X11 Server" pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
 
 if ! is_ubuntu_installed; then
-    echo -e "\n${PROCESS} ${CYAN}Mempersiapkan unduhan Ubuntu OS...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Mengunduh Ubuntu Core OS secara live...${NC}"
     proot-distro remove ubuntu > /dev/null 2>&1
-    echo -e "${PURPLE}[!] System akan mengunduh Ubuntu secara live. Mohon tunggu...${NC}"
-    echo -e "${CYAN}------------------------------------------------------${NC}"
+    echo -e "${PURPLE}[!] Mohon tunggu hingga proses unduhan selesai.${NC}"
+    echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
     proot-distro install ubuntu
-    echo -e "${CYAN}------------------------------------------------------${NC}"
+    echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
 fi
 
 echo ""
@@ -506,10 +507,9 @@ is_termux_x11_installed && echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server
 echo ""
 
 if ! copy_self_to_home; then
-    echo -e "${NEON_PINK}[!] Script dipanggil via pipe. Tolong download script & simpan sebagai nx_code.sh${NC}"
+    echo -e "${NEON_PINK}[!] Script dipanggil via pipe. Simpan file secara lokal sebagai nx_code.sh${NC}"
 fi
 
-# Injeksi bashrc Profile
 if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
     sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc" 2>/dev/null
 
@@ -552,7 +552,7 @@ echo -e "${NEON_PINK}======================================================${NC}
 
 echo -e " ${PURPLE}[1]${NC} ${WHITE}Restart Terminal${NC}"
 echo -e " ${PURPLE}[2]${NC} ${WHITE}Exit${NC}"
-echo -ne "${CYAN}[?] Pilihan:${NC} "
+echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
 read final_choice
 
 [ "$final_choice" == "1" ] && exec bash || exit 0
