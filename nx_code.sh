@@ -1,13 +1,17 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
-# [1] KONFIGURASI GLOBAL & MANIFES TEMA GITHUB
+# [1] KONFIGURASI GLOBAL & OPTIMASI JARINGAN
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
-NX_VERSION="v1.1.3"
+NX_VERSION="v1.1.4"
 NX_USER="nxuser"
+
+# Standar industri untuk curl: Fail silently, show error, follow redirects,
+# batasan waktu koneksi (5s), batas total waktu (10s), dan retry otomatis (2x).
+NX_CURL_OPTS="-fsSL --connect-timeout 5 --max-time 10 --retry 2"
 
 THEME_DIR="$HOME/.nx_code/themes"
 CONFIG_FILE="$HOME/.nx_code/config"
@@ -25,9 +29,9 @@ init_theme_system() {
 
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
 
-    # Jika file tema lokal belum ada, coba unduh dari GitHub
+    # Jika file tema lokal belum ada, unduh dari GitHub menggunakan optimized curl
     if [ ! -f "$theme_file" ]; then
-        curl -fsSL "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
+        curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
     fi
 
     # Fallback ke cyberpunk jika file kosong/gagal
@@ -35,7 +39,7 @@ init_theme_system() {
         ACTIVE_THEME="cyberpunk"
         theme_file="$THEME_DIR/cyberpunk.sh"
         if [ ! -f "$theme_file" ]; then
-            curl -fsSL "$NX_THEMES_BASE_URL/cyberpunk.sh" -o "$theme_file" 2>/dev/null
+            curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/cyberpunk.sh" -o "$theme_file" 2>/dev/null
         fi
     fi
 
@@ -281,7 +285,7 @@ change_theme_menu() {
     local manifest="$HOME/.nx_themes_manifest.tmp"
     rm -f "$manifest"
 
-    if ! curl -fsSL "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
+    if ! curl $NX_CURL_OPTS "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
         echo -e "cyberpunk|Cyberpunk Neon\nmatrix|Matrix Green\ndracula|Dracula Dark\nsynthwave|Synthwave 84\nocean|Oceanic Deep\nsunset|Sunset Orange\nemerald|Emerald Forest\nbloodmoon|Blood Moon\nmonokai|Monokai Pro\narctic|Arctic Frost\ngold|Cyber Gold" > "$manifest"
     fi
 
@@ -322,7 +326,7 @@ change_theme_menu() {
 
             if [ ! -f "$theme_file" ]; then
                 echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh' dari GitHub...${NC}"
-                curl -fsSL "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
+                curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
                 sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null
             fi
 
@@ -355,7 +359,6 @@ toggle_debug_mode() {
         echo -e "\n${NEON_GREEN}[✔] Debug Mode DIHIDUPKAN (Trace aktif).${NC}"
     fi
 
-    # Simpan state ke config file
     echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
     echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
     sleep 1.5
@@ -380,7 +383,7 @@ check_for_update() {
     echo -e "\n${PROCESS} ${CYAN}Checking GitHub Repository...${NC}"
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
 
-    if ! curl -fsSL "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null || [ ! -s "$tmp_file" ]; then
+    if ! curl $NX_CURL_OPTS "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null || [ ! -s "$tmp_file" ]; then
         echo -e "${NEON_PINK}[X] Gagal/File kosong. Periksa koneksi internet.${NC}"
         rm -f "$tmp_file"; return 1
     fi
