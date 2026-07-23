@@ -4,7 +4,7 @@
 # [1] KONFIGURASI GLOBAL
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_VERSION="v1.0.4"
+NX_VERSION="v1.0.5"
 NX_USER="nxuser"
 
 CYAN='\033[0;36m'
@@ -218,24 +218,6 @@ kill_ubuntu_gui() {
     if [ "$found" -eq 1 ]; then echo -e "${SUCCESS} ${WHITE}Sesi dihentikan.${NC}"; else echo -e "${NEON_PINK}[X]${NC} ${WHITE}Tidak ada sesi berjalan.${NC}"; fi
 }
 
-check_gui_session() {
-    echo -e "\n${PROCESS} ${CYAN}Memindai sesi GUI...${NC}\n"
-    local x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
-    local xfce_procs=$(proot-distro login ubuntu -- bash -c "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
-
-    if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
-        echo -e "${SUCCESS} ${WHITE}Clear. Tidak ada sesi tertahan.${NC}"
-        return 0
-    fi
-
-    [ -n "$x11_procs" ] && echo -e "${WHITE}Termux:X11 aktif:${NC}\n${CYAN}${x11_procs}${NC}\n"
-    [ -n "$xfce_procs" ] && echo -e "${WHITE}XFCE4/DBus aktif:${NC}\n${CYAN}${xfce_procs}${NC}\n"
-
-    echo -ne "${CYAN}[?] Paksa bersihkan semua sesi? (y/n):${NC} "
-    read clean_choice
-    [[ "$clean_choice" =~ ^[Yy]$ ]] && kill_ubuntu_gui
-}
-
 # ==============================================================================
 # [5] SYSTEM MANAGEMENT
 # ==============================================================================
@@ -294,8 +276,7 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
     echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
     echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI${NC}"
-    echo -e " ${PURPLE}[4]${NC} ${WHITE}System Session Scanner${NC}"
-    echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for Updates${NC}"
+    echo -e " ${PURPLE}[4]${NC} ${WHITE}Check for Updates${NC}"
     echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit Interface${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
@@ -308,8 +289,7 @@ show_shortcut_menu() {
             ;;
         2) launch_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
-        4) check_gui_session; sleep 1; show_shortcut_menu ;;
-        5) check_for_update; sleep 1; show_shortcut_menu ;;
+        4) check_for_update; sleep 1; show_shortcut_menu ;;
         0) echo -e "\n${NEON_GREEN}[➔] System Standby.${NC}\n" ;;
         *) echo -e "\n\033[1;95m[!] ALERT: INVALID DIRECTIVE.\033[0m"; sleep 1; show_shortcut_menu ;;
     esac
