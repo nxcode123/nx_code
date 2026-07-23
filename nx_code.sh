@@ -335,9 +335,13 @@ fi
 
 copy_self_to_home
 
-if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
-    sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc" 2>/dev/null
-    cat << 'EOF' >> "$HOME/.bashrc"
+# --- AUTO-HEALING & OVERWRITE BASHRC CONFIGURATION ---
+if grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
+    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
+fi
+
+sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc" 2>/dev/null
+cat << 'EOF' >> "$HOME/.bashrc"
 
 # --- NX_CODE ENVIRONMENT ---
 [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --ui-only
@@ -345,16 +349,21 @@ alias ls='ls --color=auto --group-directories-first'
 alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
-clear() { command clear; [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only; }
+
+# Perbaikan fungsi clear agar bersih tanpa memicu welcome screen termux
+clear() {
+    command clear
+    [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only
+}
+
 rm() { [ $# -eq 0 ] && { echo -e "\033[1;95m[!] NO TARGET.\033[0m"; return 1; }; command rm "$@"; }
 command_not_found_handle() { echo -e "\033[1;95m[!] UNKNOWN '$1'.\033[0m"; return 127; }
 # ---------------------------
 EOF
-fi
 
 termux-wake-unlock
 echo -e "\n${NEON_GREEN}[Complete] Sistem Berhasil Diinisialisasi!${NC}"
 sleep 1.5
 
-# Transisi mulus otomatis membuka menu utama tanpa keluar ke terminal dasar
+# Transisi mulus otomatis membuka menu utama
 exec bash "$HOME/nx_code.sh" --menu
