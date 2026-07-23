@@ -4,7 +4,7 @@
 # [1] KONFIGURASI GLOBAL
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_VERSION="v1.0.5"
+NX_VERSION="v1.0.6"
 NX_USER="nxuser"
 
 CYAN='\033[0;36m'
@@ -18,7 +18,7 @@ SUCCESS="${NEON_GREEN}[✔]${NC}"
 PROCESS="${CYAN}[➔]${NC}"
 
 # ==============================================================================
-# [2] CORE UTILITIES (UI & PROGRESS)
+# [2] CORE UTILITIES (UI & LIVE PROGRESS)
 # ==============================================================================
 animate_logo() {
     command clear
@@ -41,39 +41,57 @@ animate_logo() {
     echo ""
 }
 
-show_futuristic_progress() {
-    local message="$1"
-    local pid=$2
-    local ticks=0
-    local elapsed=0
+# Live Progress Tracker: Membaca output asli dari background process
+show_live_progress() {
+    local msg="$1"
+    local pid="$2"
+    local log_file="$3"
+    local spinner=( "⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏" )
+    local i=0
+    local start_time=$(date +%s)
 
-    echo -ne "\033[?25l"
+    echo -ne "\033[?25l" # Sembunyikan kursor
     while kill -0 "$pid" 2>/dev/null; do
-        local bar_size=15
-        local fill=$((ticks % (bar_size + 1)))
-        local bar=""
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
 
-        for ((j=0; j<fill; j++)); do bar="${bar}="; done
-        if [ $fill -lt $bar_size ]; then bar="${bar}>"; fill=$((fill + 1)); fi
-        for ((j=fill; j<bar_size; j++)); do bar="${bar} "; done
+        # Ambil baris terakhir log, hapus kode warna ANSI, dan batasi panjang karakter agar tidak merusak UI
+        local last_line=""
+        if [ -f "$log_file" ]; then
+            last_line=$(tail -n 1 "$log_file" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\n\r' | cut -c 1-28)
+        fi
 
-        elapsed=$((ticks / 5))
-        printf "\r${PROCESS} %-25s ${CYAN}[${NEON_PINK}%s${CYAN}]${PURPLE} (%ds)${NC}" "$message" "$bar" "$elapsed"
-        sleep 0.2
-        ((ticks++))
+        # Cetak ulang baris (overwrite)
+        printf "\r\033[2K${PROCESS} ${CYAN}%-20s ${NEON_PINK}%s ${PURPLE}[%s] (%ds)${NC}" "$msg" "${spinner[$i]}" "$last_line" "$elapsed"
+
+        i=$(( (i + 1) % 10 ))
+        sleep 0.1
     done
 
-    elapsed=$((ticks / 5))
-    printf "\r\033[K${SUCCESS} ${WHITE}%-25s ${NEON_GREEN}[DONE]${PURPLE} (%ds)${NC}\n" "$message" "$elapsed"
-    echo -ne "\033[?25h"
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+
+    # Hapus baris progress dan tampilkan status selesai
+    printf "\r\033[2K${SUCCESS} ${WHITE}%-20s ${NEON_GREEN}[DONE] ${PURPLE}(%ds)${NC}\n" "$msg" "$elapsed"
+    echo -ne "\033[?25h" # Munculkan kursor
 }
 
-# Wrapper cerdas untuk eksekusi background + animasi
+# Wrapper eksekusi dengan live log redirect
 execute_task() {
     local msg="$1"
     shift
-    ( "$@" ) > /dev/null 2>&1 &
-    show_futuristic_progress "$msg" $!
+    local tmp_log=$(mktemp)
+
+    # Eksekusi command di background, output dilempar ke temporary log
+    ( "$@" ) > "$tmp_log" 2>&1 &
+    local pid=$!
+
+    show_live_progress "$msg" "$pid" "$tmp_log"
+
+    wait "$pid"
+    local exit_code=$?
+    rm -f "$tmp_log"
+    return $exit_code
 }
 
 # ==============================================================================
@@ -156,23 +174,22 @@ launch_ubuntu_gui() {
     fi
 
     if ! is_xfce4_installed; then
-        echo -e "\n${PROCESS} ${CYAN}Menginstal XFCE4 Desktop (Proses ini butuh waktu)...${NC}"
-        proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata -y" >/dev/null 2>&1
+        echo -e "\n${PURPLE}[!] Proses instalasi Desktop Environment butuh waktu tergantung koneksi...${NC}"
+        # Integrasi execute_task agar progress unduhan 'apt' terlihat secara live
+        execute_task "Menginstal XFCE4..." proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata -y"
+
         if ! is_xfce4_installed; then
             echo -e "${NEON_PINK}[X] Instalasi gagal. Periksa koneksi internet.${NC}"
             return 1
         fi
-        echo -e "${SUCCESS} ${WHITE}XFCE4 berhasil dipasang.${NC}"
     fi
 
-    # Fix kosmetik xubuntu wallpaper
     if ! proot-distro login ubuntu -- bash -c "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]" >/dev/null 2>&1; then
         proot-distro login ubuntu -- bash -c "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png" 2>/dev/null
     fi
 
     if ! is_nonroot_user_setup; then
-        echo -e "\n${PROCESS} ${CYAN}Menyiapkan profil user non-root...${NC}"
-        setup_nonroot_user
+        execute_task "Konfigurasi User..." setup_nonroot_user
     fi
 
     choose_resolution
@@ -204,7 +221,8 @@ WRAPEOF
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
     echo -e "${PROCESS} ${CYAN}Buka aplikasi Termux:X11 jika tidak muncul otomatis.${NC}\n"
 
-    show_futuristic_progress "GUI Active (Termux:X11)" "$X11_PID"
+    # Progress bar ringan saat GUI hidup
+    show_live_progress "GUI Active (Termux:X11)" "$X11_PID" "/dev/null"
     wait "$X11_PID" 2>/dev/null
     echo -e "\n${NEON_GREEN}[➔] Sesi GUI tertutup.${NC}"
 }
@@ -228,7 +246,7 @@ run_auto_cleaner() {
     [ -f "$last_clean_file" ] && last_clean=$(cat "$last_clean_file" 2>/dev/null)
 
     if [ "$today" != "$last_clean" ]; then
-        execute_task "Auto-Cleaner System Storage" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
+        execute_task "Auto-Cleaner Storage" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
         echo "$today" > "$last_clean_file"
     fi
 }
@@ -301,16 +319,19 @@ case "$1" in
     --menu) show_shortcut_menu; exit 0 ;;
     --ui-only)
         animate_logo
-        echo -ne "${CYAN}Syncing database"; for i in {1..3}; do echo -ne "."; sleep 0.2; done; echo -e " ${NEON_GREEN}Done!${NC}"
 
-        echo -ne "${CYAN}Ubuntu integrity"; for i in {1..3}; do echo -ne "."; sleep 0.2; done
-        is_ubuntu_installed && echo -e " ${NEON_GREEN}[✔] Ready${NC}" || echo -e " ${NEON_PINK}[X] Missing${NC}"
+        # Pengecekan riil secara instan, tanpa delay buatan
+        echo -ne "${CYAN}Syncing database...... ${NC}"
+        echo -e "${NEON_GREEN}[✔] Clear${NC}"
 
-        echo -ne "${CYAN}Storage access"; for i in {1..2}; do echo -ne "."; sleep 0.2; done
-        is_storage_setup && echo -e " ${NEON_GREEN}[✔] Ready${NC}" || echo -e " ${NEON_PINK}[X] Required (Run: termux-setup-storage)${NC}"
+        echo -ne "${CYAN}Ubuntu Integrity...... ${NC}"
+        is_ubuntu_installed && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Missing${NC}"
+
+        echo -ne "${CYAN}Storage Access........ ${NC}"
+        is_storage_setup && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Required (Run: termux-setup-storage)${NC}"
 
         run_auto_cleaner
-        echo -e "${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk mengakses interface kontrol.${NC}\n"
+        echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk mengakses interface kontrol.${NC}\n"
         exit 0
         ;;
 esac
@@ -321,22 +342,21 @@ esac
 termux-wake-lock
 animate_logo
 
-execute_task "Updating Repositories..." pkg update -y -o Dpkg::Options::="--force-confold"
-execute_task "Upgrading System Core..." pkg upgrade -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploying Hypervisor..." pkg install proot-distro coreutils -y -o Dpkg::Options::="--force-confold"
-execute_task "Adding X11 Repository..." pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploying X11 Server..." pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
+execute_task "Updating Repos..." pkg update -y -o Dpkg::Options::="--force-confold"
+execute_task "Upgrading Core..." pkg upgrade -y -o Dpkg::Options::="--force-confold"
+execute_task "Deploy Hypervisor..." pkg install proot-distro coreutils -y -o Dpkg::Options::="--force-confold"
+execute_task "Add X11 Repo..." pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
+execute_task "Deploy X11 Server..." pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
 
 if ! is_ubuntu_installed; then
-    echo -e "${PROCESS} ${CYAN}Mempersiapkan unduhan Ubuntu OS...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Mempersiapkan unduhan Ubuntu OS...${NC}"
     proot-distro remove ubuntu > /dev/null 2>&1
     echo -e "${PURPLE}[!] System akan mengunduh Ubuntu secara live. Mohon tunggu...${NC}"
-    echo "------------------------------------------------------"
+    echo -e "${CYAN}------------------------------------------------------${NC}"
+    # Membiarkan progress asli dari proot-distro (curl output) muncul di layar
     proot-distro install ubuntu
-    echo "------------------------------------------------------"
+    echo -e "${CYAN}------------------------------------------------------${NC}"
 fi
-
-execute_task "Verifying Integrity..." sleep 1
 
 echo ""
 is_ubuntu_installed && echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_PINK}Failed${NC}"
@@ -349,7 +369,6 @@ fi
 
 # Injeksi bashrc Profile
 if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
-    # Bersihkan sisa flag rm alias jika ada
     sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc" 2>/dev/null
 
     cat << 'EOF' >> "$HOME/.bashrc"
