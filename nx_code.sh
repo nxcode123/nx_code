@@ -269,7 +269,7 @@ toggle_debug_mode() {
 show_shortcut_menu() {
     animate_logo
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e "${WHITE}               ${TXT_MENU_TITLE:-NX_CODE MENU}                 ${NC}"
+    echo -e "${WHITE}                ${TXT_MENU_TITLE:-NX_CODE MENU}                 ${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
     echo -e " ${PURPLE}[1]${NC} ${WHITE}${TXT_MENU_1:-Ubuntu CLI Core}${NC}"
     echo -e " ${PURPLE}[2]${NC} ${WHITE}${TXT_MENU_2:-Ubuntu GUI}${NC}"
@@ -315,7 +315,7 @@ case "$1" in
 esac
 
 # ==============================================================================
-# [5] INSTALLATION BOOTSTRAPPER
+# [5] INSTALLATION BOOTSTRAPPER (AUTO-TRANSITION TO MENU)
 # ==============================================================================
 termux-wake-lock
 animate_logo
@@ -353,6 +353,8 @@ EOF
 fi
 
 termux-wake-unlock
-echo -e "\n${NEON_GREEN}[Complete] System Initialized.${NC}"
-read -p "Restart terminal? [1=Yes / 2=No]: " final_choice
-[ "$final_choice" == "1" ] && exec bash || exit 0
+echo -e "\n${NEON_GREEN}[Complete] Sistem Berhasil Diinisialisasi!${NC}"
+sleep 1.5
+
+# Transisi mulus otomatis membuka menu utama tanpa keluar ke terminal dasar
+exec bash "$HOME/nx_code.sh" --menu
