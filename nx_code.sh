@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.4.6-OriginalLogo"
+NX_CODE_VERSION="v1.1.0"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -11,7 +11,9 @@ NX_AVAILABLE_THEMES=(cyberpunk matrix dracula ocean sunset mono)
 # --- KONFIGURASI USER NON-ROOT UNTUK SESI GUI ---
 NX_USER="nxuser"
 
-# --- PATCH: sumber kebenaran tunggal resolusi default
+# --- PATCH: resolusi default sebelumnya ditulis berulang ("720x1440") di 3
+# tempat berbeda (choose_resolution x2, launch_ubuntu_gui). Sekarang jadi satu
+# sumber kebenaran tunggal.
 NX_DEFAULT_RES_W="720"
 NX_DEFAULT_RES_H="1440"
 
@@ -24,13 +26,17 @@ mkdir -p "$NX_TEMP_DIR"
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-# --- PATCH: pipefail
+# --- PATCH: pipefail supaya "cmd_gagal | tee log" tidak menyembunyikan
+# kegagalan cmd_gagal di balik exit code sukses milik tee. Tidak memakai
+# `set -e`/`set -u` karena banyak fungsi di script ini sengaja mengandalkan
+# exit code non-nol dari perintah pengecekan (mis. `if ! is_ubuntu_installed`)
+# tanpa ingin script langsung berhenti.
 set -o pipefail
 
 # File log sementara untuk progress bar
 NX_STEP_LOG="$NX_TEMP_DIR/.nx_step.log"
 
-# --- TRAP: Pastikan kursor selalu muncul kembali
+# --- TRAP: Pastikan kursor selalu muncul kembali jika script terhenti paksa ---
 trap 'echo -ne "\033[?25h"' EXIT
 
 # ==============================================================================
@@ -94,6 +100,9 @@ log_section() {
     echo "===== $(date '+%Y-%m-%d %H:%M:%S') | $1 =====" >> "$NX_LOG"
 }
 
+# --- PATCH: log tidak pernah di-rotate otomatis, cuma bisa dihapus manual lewat
+# menu. Kalau user lupa, file bisa membengkak tanpa batas seiring waktu. Di sini
+# kalau ukurannya lewat 2MB, simpan 500 baris terakhir saja.
 rotate_log_if_needed() {
     [ -f "$NX_LOG" ] || return 0
     local max_bytes=$((2 * 1024 * 1024))
@@ -106,14 +115,33 @@ rotate_log_if_needed() {
 
 # ==============================================================================
 # HELPER: EKSEKUSI DI DALAM UBUNTU
+# --- PATCH: paksa DEBIAN_FRONTEND=noninteractive & DEBCONF_NONINTERACTIVE_SEEN=true
+#     ikut masuk ke dalam sesi proot-distro (chroot Ubuntu), karena env yang
+#     di-export di level Termux TIDAK otomatis diwariskan ke sana. Tanpa ini,
+#     paket seperti keyboard-configuration/tzdata bisa memicu prompt debconf
+#     interaktif yang membuat instalasi hang tanpa progress (stuck di 0%).
 # ==============================================================================
 ux() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1"; }
+# --- PATCH: sebelumnya stderr dibuang total ke /dev/null di semua pemanggilan
+# "quiet". Ini bikin kegagalan non-fatal (mis. useradd gagal karena alasan lain)
+# tidak pernah tercatat di mana pun, sehingga sulit didiagnosis lewat Diagnostic
+# Logs. Sekarang stdout tetap disenyapkan (karena memang tidak perlu ditampilkan
+# ke user), tapi stderr diarahkan ke NX_LOG supaya jejaknya tetap ada.
 ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>>"$NX_LOG"; }
+# --- PATCH: ux_ok dulu identik 100% dengan ux_quiet (duplikasi kode). Sekarang
+# jadi alias murni supaya hanya ada satu implementasi yang perlu dirawat.
 ux_ok() { ux_quiet "$1"; }
 
+# --- PATCH: helper baru untuk menjalankan job background SEKALIGUS mengecek exit
+# code-nya. Sebelumnya show_futuristic_progress hanya menunggu PID mati tanpa
+# pernah membaca status keluar, jadi kalau "apt-get update" gagal (mis. jaringan
+# putus), script tetap lanjut ke step berikutnya seolah semuanya sukses.
+# Pemakaian:
+#   run_tracked "Label" "$NX_STEP_LOG" "$total" -- ux "apt-get update -y"
+#   if [ "$LAST_JOB_STATUS" -ne 0 ]; then ... tangani gagal ... fi
 run_tracked() {
     local label="$1" logfile="$2" total="$3"
-    shift 4
+    shift 4  # buang label, logfile, total, "--"
 
     : > "$logfile"
     ( "$@" > "$logfile" 2>&1 ) &
@@ -128,10 +156,11 @@ run_tracked() {
 is_ubuntu_installed()      { proot-distro login ubuntu -- true >/dev/null 2>&1; }
 is_termux_x11_installed()  { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed()       { ux_quiet "command -v startxfce4"; }
-is_vnc_installed()         { ux_quiet "command -v vncserver"; }
 is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
 
+# --- PATCH: pre-seed jawaban debconf yang paling sering bikin hang
+# (keyboard-configuration, tzdata) supaya apt tidak pernah menunggu input TTY.
 preseed_debconf_answers() {
     ux_ok "debconf-set-selections <<'PRESEED'
 keyboard-configuration  keyboard-configuration/layout           select  English (US)
@@ -159,6 +188,7 @@ setup_nonroot_user() {
     "
 }
 
+# --- FUNGSI PROGRESS AMAN KURSOR & ANTI-STUCK DENGAN SPINNER ---
 show_futuristic_progress() {
     local message="$1"
     local pid=$2
@@ -255,122 +285,23 @@ animate_logo() {
     echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
-# ==============================================================================
-# FUNGSI MANAJEMEN SESI GUI & VNC
-# ==============================================================================
-
-check_gui_session_x11() {
-    say_proc "Memeriksa sesi X11..."
-    local x11_procs x11_count xfce_procs
-    x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
-    xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
-
-    echo ""
-    if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
-        say_hint "Status: KOSONG (Tidak ada proses GUI X11 yang aktif)."
-    else
-        if [ -n "$x11_procs" ]; then
-            x11_count=$(echo "$x11_procs" | wc -l)
-            echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
-        fi
-        if [ -n "$xfce_procs" ]; then
-            echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
-        fi
-    fi
-    echo ""
-    echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
-    read -r
-}
-
-kill_ubuntu_x11() {
-    say_proc "Terminating X11 processes..."
-    local found=0
-
-    if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
-        source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
-        if [ -n "${SESSION_PID:-}" ]; then
-            ux_ok "kill $SESSION_PID 2>/dev/null"
-            found=1
-        fi
-        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
-            kill "$X11_PID" 2>/dev/null
-            found=1
-        fi
-        rm -f "$NX_TEMP_DIR/.nx_gui_state"
-        sleep 1
-    fi
-
-    if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
-        if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
-        if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
-    fi
-    
-    sleep 1
-    termux-wake-unlock >/dev/null 2>&1
-    
-    if [ "$found" -eq 1 ]; then
-        say_ok "Sesi X11 dibersihkan."
-    else
-        say_hint "Tidak ada sesi X11 aktif."
-    fi
-}
-
-check_gui_session_vnc() {
-    say_proc "Memeriksa sesi VNC..."
-    local vnc_procs
-    vnc_procs=$(ux "pgrep -af 'Xtigervnc'" 2>/dev/null)
-
-    echo ""
-    if [ -z "$vnc_procs" ]; then
-        say_hint "Status: KOSONG (Tidak ada proses VNC yang aktif)."
-    else
-        echo -e "  ${DIM}▶ VNC Server (TigerVNC) aktif di Ubuntu:${NC}"
-        echo -e "    ${WHITE}$vnc_procs${NC}"
-    fi
-    echo ""
-    echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
-    read -r
-}
-
-kill_ubuntu_vnc() {
-    say_proc "Terminating VNC processes..."
-    local found=0
-
-    if ux_quiet "pgrep -f Xtigervnc"; then
-        ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
-        ux_ok "pkill -f Xtigervnc"
-        found=1
-    fi
-    
-    sleep 1
-    termux-wake-unlock >/dev/null 2>&1
-    
-    if [ "$found" -eq 1 ]; then
-        say_ok "Sesi VNC dibersihkan."
-    else
-        say_hint "Tidak ada sesi VNC aktif."
-    fi
-}
-
-choose_resolution_x11() {
+# --- VALIDASI RESOLUSI LAYAR KETAT ---
+choose_resolution() {
     local res_choice custom_res
-    GUI_CANCELLED=0
 
     hr
-    echo -e "  ${WHITE}Pilih Resolusi Layar GUI - X11:${NC}"
+    echo -e "  ${WHITE}Pilih Resolusi Layar GUI:${NC}"
     echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
-    echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi / Bebas)${NC}"
-    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Matikan GUI - X11${NC}"
-    echo -e "  ${PURPLE}[4]${NC} ${WHITE}Cek sesi yang aktif${NC}"
+    echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi)${NC}"
     echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
     hr
     echo -ne "  ${CYAN}Pilihan ❯${NC} "
-    read -r res_choice
+    read res_choice
 
     case "$res_choice" in
         1)
             echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}) ❯${NC} "
-            read -r custom_res
+            read custom_res
             if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
                 local w="${BASH_REMATCH[1]}"
                 local h="${BASH_REMATCH[2]}"
@@ -387,57 +318,10 @@ choose_resolution_x11() {
             fi
             ;;
         2) RES_W=""; RES_H="" ;;
-        3) kill_ubuntu_x11; GUI_CANCELLED=1 ;;
-        4) check_gui_session_x11; GUI_CANCELLED=1 ;;
         0) GUI_CANCELLED=1 ;;
         *)
-            say_warn "Pilihan tidak valid, kembali ke menu."
-            GUI_CANCELLED=1
-            ;;
-    esac
-}
-
-choose_resolution_vnc() {
-    local res_choice custom_res
-    GUI_CANCELLED=0
-
-    hr
-    echo -e "  ${WHITE}Pilih Resolusi Layar GUI - VNC:${NC}"
-    echo -e "  ${PURPLE}[1]${NC} ${WHITE}Custom resolution${NC}"
-    echo -e "  ${PURPLE}[2]${NC} ${WHITE}Native (Rekomendasi / Bebas)${NC}"
-    echo -e "  ${PURPLE}[3]${NC} ${WHITE}Matikan GUI - VNC${NC}"
-    echo -e "  ${PURPLE}[4]${NC} ${WHITE}List sesi VNC yang aktif${NC}"
-    echo -e "  ${PURPLE}[0]${NC} ${WHITE}Batal & Kembali${NC}"
-    hr
-    echo -ne "  ${CYAN}Pilihan ❯${NC} "
-    read -r res_choice
-
-    case "$res_choice" in
-        1)
-            echo -ne "  ${CYAN}Format (WIDTHxHEIGHT, mis. 1280x720) ❯${NC} "
-            read -r custom_res
-            if [[ "$custom_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
-                local w="${BASH_REMATCH[1]}"
-                local h="${BASH_REMATCH[2]}"
-                if [ "$w" -ge 400 ] && [ "$w" -le 7680 ] && [ "$h" -ge 400 ] && [ "$h" -le 4320 ]; then
-                    RES_W="$w"
-                    RES_H="$h"
-                else
-                    say_warn "Resolusi di luar batas wajar. Memakai 1280x720."
-                    RES_W="1280"; RES_H="720"
-                fi
-            else
-                say_warn "Format tidak valid. Memakai 1280x720."
-                RES_W="1280"; RES_H="720"
-            fi
-            ;;
-        2) RES_W=""; RES_H="" ;;
-        3) kill_ubuntu_vnc; GUI_CANCELLED=1 ;;
-        4) check_gui_session_vnc; GUI_CANCELLED=1 ;;
-        0) GUI_CANCELLED=1 ;;
-        *)
-            say_warn "Pilihan tidak valid, kembali ke menu."
-            GUI_CANCELLED=1
+            say_warn "Pilihan tidak valid, memakai ${NX_DEFAULT_RES_W}x${NX_DEFAULT_RES_H}."
+            RES_W="$NX_DEFAULT_RES_W"; RES_H="$NX_DEFAULT_RES_H"
             ;;
     esac
 }
@@ -451,16 +335,17 @@ write_gui_startup_script() {
 export DISPLAY=:2
 export ELECTRON_DISABLE_SANDBOX=true
 export PULSE_SERVER=tcp:127.0.0.1:4713
-
-# PATCH: Optimasi Rendering
-export NO_AT_BRIDGE=1
-export LIBGL_ALWAYS_SOFTWARE=1
-
 sleep 2
 OUT=\$(xrandr | grep " connected" | head -n1 | awk '{print \$1}')
 if [ -n "$target_w" ]; then
+    # --- PATCH: dulu jika binary 'cvt' tidak ada, kegagalan ditelan oleh
+    # 2>/dev/null dan user tidak pernah tahu kenapa resolusi custom tidak
+    # diterapkan. 'cvt' berasal dari xserver-xorg-core, yang TIDAK termasuk
+    # paket yang diinstal script ini (hanya x11-xserver-utils) -- jadi ini
+    # kemungkinan besar akan gagal diam-diam pada instalasi bersih.
     if ! command -v cvt >/dev/null 2>&1; then
-        echo "[nx-gui] PERINGATAN: 'cvt' tidak ditemukan." >&2
+        echo "[nx-gui] PERINGATAN: 'cvt' tidak ditemukan (paket xserver-xorg-core belum terpasang)." >&2
+        echo "[nx-gui] Resolusi custom dilewati, memakai resolusi native." >&2
     else
         MODELINE=\$(cvt $target_w $target_h 60 2>/dev/null | grep Modeline)
         if [ -n "\$MODELINE" ]; then
@@ -469,13 +354,11 @@ if [ -n "$target_w" ]; then
             xrandr --newmode "\$MODE_NAME" \$MODE_PARAMS 2>/dev/null
             xrandr --addmode "\$OUT" "\$MODE_NAME" 2>/dev/null
             xrandr --output "\$OUT" --mode "\$MODE_NAME" 2>/dev/null
+        else
+            echo "[nx-gui] PERINGATAN: cvt gagal menghasilkan modeline untuk ${target_w}x${target_h}." >&2
         fi
     fi
 fi
-
-# Mematikan XFWM4 Compositing untuk performa lebih ringan
-(sleep 3 && xfconf-query -c xfwm4 -p /general/use_compositing -s false >/dev/null 2>&1) &
-
 dbus-launch --exit-with-session startxfce4
 EOF
     ux_ok "chmod 755 /usr/local/bin/nx-gui-startup.sh"
@@ -502,90 +385,12 @@ setup_audio_server() {
     pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1
 }
 
-setup_xfce4_env() {
-    if ! is_xfce4_installed; then
-        say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
-        log_section "INSTALL XFCE4"
-
-        preseed_debconf_answers
-
-        run_tracked "Updating repos" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
-        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
-            say_err "Gagal update repo Ubuntu. Cek koneksi & Diagnostic Logs."
-            return 1
-        fi
-
-        local xfce_total
-        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-terminal xfce4-taskmanager dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
-        [ -z "$xfce_total" ] && xfce_total=0
-
-        run_tracked "Installing Desktop" "$NX_STEP_LOG" "$xfce_total" -- \
-            ux "apt-get upgrade -y && apt-get install xfce4 xfce4-terminal xfce4-taskmanager dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y"
-
-        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
-            say_err "Instalasi XFCE4 gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
-            return 1
-        fi
-        say_ok "XFCE4 berhasil dipasang."
-    fi
-
-    if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
-        ux_ok "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png"
-    fi
-
-    say_proc "Menyiapkan subsistem DBus (Andronix Fix)..."
-    ux_ok "rm -f /var/lib/dbus/machine-id && dbus-uuidgen > /var/lib/dbus/machine-id 2>/dev/null"
-    ux_ok "mkdir -p /var/run/dbus"
-
-    return 0
-}
-
-setup_vnc_server() {
-    if ! is_vnc_installed; then
-        say_proc "Instalasi VNC Server..."
-        log_section "INSTALL VNC"
-        
-        local vnc_total
-        vnc_total=$(ux "apt-get -s install tigervnc-standalone-server" 2>/dev/null | grep -Ec '^(Inst|Conf)')
-        [ -z "$vnc_total" ] && vnc_total=0
-        
-        run_tracked "Installing TigerVNC" "$NX_STEP_LOG" "$vnc_total" -- \
-            ux "apt-get install tigervnc-standalone-server dbus-x11 -y"
-        
-        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
-            say_err "Instalasi VNC gagal (exit code $LAST_JOB_STATUS)."
-            return 1
-        fi
-        say_ok "VNC Server berhasil dipasang."
-    fi
-
-    say_proc "Menyiapkan konfigurasi VNC..."
-    ux_quiet "
-        mkdir -p /home/\$NX_USER/.config/tigervnc
-        echo '#!/bin/bash
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-export PULSE_SERVER=tcp:127.0.0.1:4713
-export NO_AT_BRIDGE=1
-export LIBGL_ALWAYS_SOFTWARE=1
-
-(sleep 3 && xfconf-query -c xfwm4 -p /general/use_compositing -s false >/dev/null 2>&1) &
-
-exec dbus-launch --exit-with-session startxfce4' > /home/\$NX_USER/.config/tigervnc/xstartup
-        chmod +x /home/\$NX_USER/.config/tigervnc/xstartup
-        echo 'nxcode' | vncpasswd -f > /home/\$NX_USER/.config/tigervnc/passwd
-        chmod 600 /home/\$NX_USER/.config/tigervnc/passwd
-        
-        rm -rf /home/\$NX_USER/.vnc 2>/dev/null
-        chown -R \$NX_USER:\$NX_USER /home/\$NX_USER/.config
-    "
-    return 0
-}
-
-# ==============================================================================
-# MODE 2: TERMUX X11 LAUNCHER
-# ==============================================================================
 launch_ubuntu_gui() {
+    local GUI_CANCELLED=0
+    local RES_W="$NX_DEFAULT_RES_W"
+    local RES_H="$NX_DEFAULT_RES_H"
+    local X11_PID
+
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
         return 1
@@ -596,24 +401,63 @@ launch_ubuntu_gui() {
         return 1
     fi
 
-    choose_resolution_x11
-    if [ "$GUI_CANCELLED" -eq 1 ]; then
-        say_hint "Kembali ke menu utama."
-        return 0
+    setup_audio_server
+
+    if ! is_xfce4_installed; then
+        say_proc "Instalasi XFCE4 Environment (Satu Kali)..."
+        log_section "INSTALL XFCE4"
+
+        # --- PATCH: preseed debconf dulu sebelum apt jalan, mencegah hang
+        preseed_debconf_answers
+
+        run_tracked "Updating repos" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Gagal update repo Ubuntu (exit code $LAST_JOB_STATUS). Cek koneksi & Diagnostic Logs."
+            return 1
+        fi
+
+        local xfce_total
+        xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        [ -z "$xfce_total" ] && xfce_total=0
+
+        # --- PATCH: pakai run_tracked supaya exit code apt-get benar-benar
+        # dicek. Sebelumnya script cuma menebak sukses/gagal dari ada-tidaknya
+        # startxfce4 di akhir, tanpa membedakan "apt gagal karena jaringan"
+        # dari "apt sukses tapi ada masalah lain".
+        run_tracked "Installing Desktop" "$NX_STEP_LOG" "$xfce_total" -- \
+            ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y"
+
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Instalasi XFCE4 gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
+            return 1
+        fi
+        if ! is_xfce4_installed; then
+            say_err "Instalasi XFCE4 gagal. Cek log."
+            return 1
+        fi
+        say_ok "XFCE4 berhasil dipasang."
     fi
 
-    setup_audio_server
-    setup_xfce4_env || return 1
+    if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
+        ux_ok "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png"
+    fi
 
     if ! is_nonroot_user_setup; then
         say_proc "Menyiapkan workspace user '$NX_USER'..."
         setup_nonroot_user
+        if is_nonroot_user_setup; then
+            say_ok "User '$NX_USER' siap."
+        else
+            say_warn "Gagal membuat user non-root."
+        fi
     fi
 
     setup_no_sandbox_fix
-    
-    if [ -n "$RES_W" ]; then
-        say_hint "PENTING: Pastikan 'Display resolution mode' di Settings Termux:X11 diubah ke 'Custom'."
+    choose_resolution
+
+    if [ "$GUI_CANCELLED" -eq 1 ]; then
+        say_hint "Dibatalkan."
+        return 0
     fi
 
     write_gui_startup_script "$RES_W" "$RES_H"
@@ -626,34 +470,39 @@ launch_ubuntu_gui() {
     if is_nonroot_user_setup; then
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
-export PROOT_NO_SECCOMP=1
 proot-distro login ubuntu --shared-tmp --user $NX_USER -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     else
         cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
-export PROOT_NO_SECCOMP=1
 proot-distro login ubuntu --shared-tmp -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     fi
     chmod +x "$HOME/.nx_x11_launch.sh"
 
     log_section "GUI LAUNCH (display :2)"
-    termux-wake-lock
-
+    # --- PATCH: sebelumnya "cmd | tee -a log &" membuat $! menangkap PID dari
+    # `tee`, bukan dari `termux-x11` itu sendiri (karena pipeline melahirkan
+    # subshell terpisah untuk tiap tahap). Akibatnya kill -0/wait di bawah ini
+    # sebenarnya memantau proses yang salah. Redirect langsung ke file (append)
+    # membuat $! menangkap PID termux-x11 yang sebenarnya.
     termux-x11 :2 -xstartup "bash $HOME/.nx_x11_launch.sh" >> "$NX_LOG" 2>&1 &
-    local X11_PID=$!
+    X11_PID=$!
 
     sleep 2
     if ! kill -0 "$X11_PID" 2>/dev/null; then
         say_err "Gagal menyalakan X11. Cek log error."
-        termux-wake-unlock
         return 1
     fi
 
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
     say_hint "Buka aplikasi 'Termux:X11' di Android."
 
+    # --- PATCH: catat PID nyata dari sesi yang baru dinyalakan (bukan pola
+    # pkill -f yang lebar), supaya kill_ubuntu_gui bisa menyudahi sesi ini
+    # secara presisi tanpa berisiko menyentuh proses lain di luar sesi ini.
+    # proot-distro TIDAK punya PID namespace sungguhan, jadi mencocokkan PID
+    # eksplisit jauh lebih aman daripada mencocokkan nama proses secara luas.
     local session_pid=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         session_pid=$(ux "pgrep -f xfce4-session 2>/dev/null | head -n1" 2>/dev/null)
@@ -668,76 +517,135 @@ WRAPEOF
     show_futuristic_progress "Sesi GUI Aktif..." "$X11_PID"
     wait "$X11_PID" 2>/dev/null
     rm -f "$NX_TEMP_DIR/.nx_gui_state"
-    
-    termux-wake-unlock
     say_ok "Sesi GUI ditutup."
 }
 
-# ==============================================================================
-# MODE 3: VNC SERVER LAUNCHER
-# ==============================================================================
-launch_ubuntu_vnc() {
+kill_ubuntu_gui() {
+    say_proc "Terminating GUI processes..."
+    local found=0
+
+    # --- PATCH: sebelumnya cleanup HANYA memakai pkill -f dengan pola nama
+    # proses lebar ('xfce4|dbus-launch|Xwayland'), yang berisiko menyentuh
+    # proses lain di luar sesi ini karena proot-distro tidak mengisolasi PID
+    # namespace. Sekarang diutamakan mematikan PID spesifik yang tercatat saat
+    # sesi ini dinyalakan; pola lebar hanya jadi fallback terakhir kalau state
+    # file tidak ada (mis. sesi dinyalakan di luar script ini / restart Termux).
+    if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
+        # shellcheck disable=SC1091
+        source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
+
+        if [ -n "${SESSION_PID:-}" ]; then
+            ux_ok "kill $SESSION_PID 2>/dev/null"
+            found=1
+        fi
+        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
+            kill "$X11_PID" 2>/dev/null
+            found=1
+        fi
+        rm -f "$NX_TEMP_DIR/.nx_gui_state"
+
+        # beri waktu proses berhenti dengan wajar sebelum verifikasi
+        sleep 2
+    fi
+
+    # Fallback lebar: jaring pengaman terakhir, dipakai HANYA kalau state
+    # tracking di atas tidak ada atau gagal membersihkan semuanya.
+    if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
+        say_warn "Sisa proses ditemukan, membersihkan dengan pola luas (fallback)."
+        if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
+        if ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'"; then found=1; fi
+    fi
+    if pkill -f "pulseaudio" >/dev/null 2>&1; then found=1; fi
+
+    sleep 1
+    if [ "$found" -eq 1 ]; then
+        say_ok "Sesi dibersihkan."
+    else
+        say_hint "Tidak ada sesi aktif."
+    fi
+}
+
+check_gui_session() {
+    say_proc "Memeriksa sesi..."
+    local x11_procs x11_count xfce_procs
+    x11_procs=$(pgrep -af "termux-x11" 2>/dev/null)
+    xfce_procs=$(ux "pgrep -af 'xfce4-session|startxfce4|dbus-launch'" 2>/dev/null)
+
+    if [ -z "$x11_procs" ] && [ -z "$xfce_procs" ]; then
+        say_ok "Aman. Tidak ada proses GUI."
+        return 0
+    fi
+
+    echo ""
+    if [ -n "$x11_procs" ]; then
+        x11_count=$(echo "$x11_procs" | wc -l)
+        echo -e "  ${DIM}▶ Termux:X11 (x${x11_count}) aktif.${NC}"
+    fi
+    if [ -n "$xfce_procs" ]; then
+        echo -e "  ${DIM}▶ XFCE4/DBus aktif di Ubuntu.${NC}"
+    fi
+
+    echo ""
+    echo -ne "  ${CYAN}Bersihkan semua sesi sekarang? (y/n) ❯${NC} "
+    read clean_choice
+    if [ "$clean_choice" == "y" ] || [ "$clean_choice" == "Y" ]; then
+        kill_ubuntu_gui
+    fi
+}
+
+quick_devtools_installer() {
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
         return 1
     fi
 
-    choose_resolution_vnc
-    if [ "$GUI_CANCELLED" -eq 1 ]; then
-        say_hint "Kembali ke menu utama."
-        return 0
-    fi
+    while true; do
+        hr
+        echo -e "  ${WHITE}DEV-TOOLS INSTALLER${NC}"
+        echo -e "  ${PURPLE}[1]${NC} ${WHITE}Full Stack${NC} ${DIM}(git, python3, nodejs, gcc, curl...)${NC}"
+        echo -e "  ${PURPLE}[2]${NC} ${WHITE}Git Only${NC}"
+        echo -e "  ${PURPLE}[3]${NC} ${WHITE}Python3 + pip${NC}"
+        echo -e "  ${PURPLE}[4]${NC} ${WHITE}Node.js + npm${NC}"
+        echo -e "  ${PURPLE}[5]${NC} ${WHITE}C/C++ Build Tools${NC}"
+        echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
+        hr
+        echo -ne "  ${CYAN}Pilihan ❯${NC} "
+        read dev_choice
 
-    setup_audio_server
-    setup_xfce4_env || return 1
+        local pkgs=""
+        case "$dev_choice" in
+            1) pkgs="git python3 python3-pip nodejs npm build-essential curl wget vim nano" ;;
+            2) pkgs="git" ;;
+            3) pkgs="python3 python3-pip" ;;
+            4) pkgs="nodejs npm" ;;
+            5) pkgs="build-essential" ;;
+            0) break ;;
+            *) say_warn "Pilihan tidak valid."; continue ;;
+        esac
 
-    if ! is_nonroot_user_setup; then
-        say_proc "Menyiapkan workspace user '$NX_USER'..."
-        setup_nonroot_user
-    fi
+        say_proc "Menyiapkan: ${pkgs}..."
+        log_section "DEV-TOOLS INSTALL ($pkgs)"
 
-    setup_no_sandbox_fix
-    setup_vnc_server || return 1
+        # --- PATCH: preseed juga di jalur ini, untuk jaga-jaga
+        preseed_debconf_answers
 
-    local vnc_w="1280"
-    local vnc_h="720"
-    if [ -n "$RES_W" ] && [ -n "$RES_H" ]; then
-        vnc_w="$RES_W"
-        vnc_h="$RES_H"
-    else
-        say_hint "Resolusi 'Native' tidak berlaku untuk VNC. Memakai default (1280x720)."
-    fi
+        run_tracked "Updating package list" "$NX_STEP_LOG" 0 -- ux "apt-get update -y"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Gagal update repo (exit code $LAST_JOB_STATUS). Cek koneksi & Diagnostic Logs."
+            continue
+        fi
 
-    say_proc "Menyalakan VNC Server (Display :1)..."
-    log_section "VNC LAUNCH (display :1)"
-    
-    ux_ok "su - $NX_USER -c 'vncserver -kill :1 2>/dev/null'"
-    ux_ok "rm -rf /tmp/.X1-lock /tmp/.X11-unix/X1 /tmp/.ICE-unix 2>/dev/null"
-    ux_ok "mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix"
-    
-    termux-wake-lock
-    
-    ux "su - $NX_USER -c 'export USER=$NX_USER && export HOME=/home/$NX_USER && vncserver :1 -geometry ${vnc_w}x${vnc_h} -depth 24 -name nxcode-desktop -localhost no'" >> "$NX_LOG" 2>&1
-    
-    local vnc_pid
-    vnc_pid=$(ux "pgrep -f 'Xtigervnc :1'" 2>/dev/null)
-    
-    if [ -z "$vnc_pid" ]; then
-        say_err "Gagal menyalakan VNC Server. Cek Diagnostic Logs."
-        termux-wake-unlock
-        return 1
-    fi
+        local dev_total
+        dev_total=$(ux "apt-get -s install -y $pkgs" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+        [ -z "$dev_total" ] && dev_total=0
 
-    echo ""
-    say_ok "Sesi VNC Berhasil Dijalankan!"
-    hr
-    echo -e "  ${WHITE}Buka aplikasi VNC Viewer di Android.${NC}"
-    echo -e "  ${WHITE}Address  : ${NEON_GREEN}127.0.0.1:5901${NC} (atau localhost:5901)"
-    echo -e "  ${WHITE}Password : ${NEON_PINK}nxcode${NC}"
-    hr
-    
-    echo -ne "  ${DIM}Tekan Enter untuk kembali ke menu...${NC}"
-    read -r
+        run_tracked "Installing modules" "$NX_STEP_LOG" "$dev_total" -- ux "apt-get install -y $pkgs"
+        if [ "$LAST_JOB_STATUS" -ne 0 ]; then
+            say_err "Instalasi paket gagal (exit code $LAST_JOB_STATUS). Cek Diagnostic Logs."
+            continue
+        fi
+        say_ok "Modul terpasang."
+    done
 }
 
 check_for_update() {
@@ -762,11 +670,22 @@ check_for_update() {
 
     say_ok "Pembaruan tersedia: $remote_version (Saat ini: $NX_CODE_VERSION)"
     echo -ne "  ${CYAN}Unduh dan terapkan pembaruan sekarang? (y/n) ❯${NC} "
-    read -r update_choice
+    read update_choice
 
     if [ "$update_choice" == "y" ] || [ "$update_choice" == "Y" ]; then
+        # --- PATCH: sebelumnya file yang baru diunduh langsung di-mv & di-exec
+        # tanpa validasi apa pun. Kalau proses download terputus di tengah jalan
+        # (file corrupt) atau berisi syntax error, user akan mendapati terminal
+        # rusak/tidak bisa masuk sama sekali. Ini BUKAN verifikasi keamanan/
+        # signature (repo publik tidak menyediakan checksum resmi), hanya
+        # sanity check dasar supaya kegagalan terdeteksi sebelum menimpa file lama.
         if [ ! -s "$tmp_file" ]; then
-            say_err "File kosong. Dibatalkan."
+            say_err "File hasil unduhan kosong. Pembaruan dibatalkan."
+            rm -f "$tmp_file"
+            return 1
+        fi
+        if ! bash -n "$tmp_file" 2>/dev/null; then
+            say_err "File hasil unduhan mengandung syntax error. Pembaruan dibatalkan, file lama tetap dipakai."
             rm -f "$tmp_file"
             return 1
         fi
@@ -792,7 +711,7 @@ view_error_log() {
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read -r log_choice
+        read log_choice
 
         case "$log_choice" in
             1)
@@ -832,7 +751,7 @@ select_theme_menu() {
         echo -e "  ${PURPLE}[0]${NC} ${WHITE}Simpan & Kembali${NC}"
         hr
         echo -ne "  ${CYAN}Pilihan ❯${NC} "
-        read -r theme_choice
+        read theme_choice
 
         if [ "$theme_choice" == "0" ]; then break; fi
 
@@ -857,16 +776,19 @@ show_shortcut_menu() {
         local w=52
         echo -e "  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
         print_menu_item "1"  "Masuk Ubuntu (CLI)"
-        print_menu_item "2"  "Masuk Ubuntu (GUI - XFCE4 via X11)"
-        print_menu_item "3"  "Masuk Ubuntu (GUI - XFCE4 via VNC)"
-        print_menu_item "4"  "System Update"
-        print_menu_item "5"  "Diagnostic Logs"
-        print_menu_item "6"  "Pengaturan Tema Visual"
+        print_menu_item "2"  "Masuk Ubuntu (GUI - XFCE4)"
+        print_menu_item "3"  "Matikan Sesi GUI"
+        print_menu_item "4"  "Status Background Proses"
+        print_menu_item "5"  "Dev-Tools Installer"
+        print_menu_item "6"  "System Monitor (HTop)"
+        print_menu_item "7"  "System Update"
+        print_menu_item "8"  "Diagnostic Logs"
+        print_menu_item "9"  "Pengaturan Tema Visual"
         echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
         print_menu_item "0"  "Tutup Panel"
         echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}"
         echo -ne "  ${CYAN}Execute ❯${NC} "
-        read -r pilihan
+        read pilihan
 
         case $pilihan in
             1)
@@ -879,10 +801,13 @@ show_shortcut_menu() {
                 fi
                 sleep 1 ;;
             2) launch_ubuntu_gui; sleep 1 ;;
-            3) launch_ubuntu_vnc; sleep 1 ;;
-            4) check_for_update; sleep 1 ;;
-            5) view_error_log; sleep 1 ;;
-            6) select_theme_menu; sleep 1 ;;
+            3) kill_ubuntu_gui; sleep 1 ;;
+            4) check_gui_session; echo -ne "  ${DIM}Tekan Enter...${NC}"; read; ;;
+            5) quick_devtools_installer; sleep 1 ;;
+            6) htop ;;
+            7) check_for_update; sleep 1 ;;
+            8) view_error_log; sleep 1 ;;
+            9) select_theme_menu; sleep 1 ;;
             0) echo -e "\n  ${SUCCESS} Disconnected.\n"; break ;;
             *) echo -e "\n  ${NEON_PINK}✖ Invalid syntax.${NC}"; sleep 1 ;;
         esac
@@ -1091,7 +1016,7 @@ echo -e "  ${WHITE}Terminal memerlukan proses Restart:${NC}"
 echo -e "  ${PURPLE}[1]${NC} ${WHITE}Restart Otomatis (Rekomendasi)${NC}"
 echo -e "  ${PURPLE}[0]${NC} ${WHITE}Keluar${NC}"
 echo -ne "  ${CYAN}Pilihan ❯${NC} "
-read -r final_choice
+read final_choice
 
 case "$final_choice" in
     1) exec bash ;;
