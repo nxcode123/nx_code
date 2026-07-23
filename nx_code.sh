@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.4.5-MobileFix"
+NX_CODE_VERSION="v1.4.6-OriginalLogo"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
@@ -237,16 +237,22 @@ cyber_boot_sequence() {
 
 animate_logo() {
     command clear
-    echo -e "\033[1;36m"
-    cat << 'EOF'
-   _  _ _  _    ____ ____ ___  ____ 
-   |\ | |\ |    |    |  | |  \ |___ 
-   | \| | \|    |___ |__| |__/ |___ 
-EOF
-    echo -e "\033[0m"
-    echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}"
-    echo -e "  ${WHITE}STATUS :${NC} ${NEON_GREEN}ONLINE${NC}  |  ${WHITE}THEME :${NC} ${NEON_PINK}${NX_CURRENT_THEME^^}${NC}  |  ${WHITE}VER :${NC} ${CYAN}${NX_CODE_VERSION}${NC}"
-    echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}\n"
+    local w=52
+    echo -e "\n  ${PURPLE}╭$(printf '─%.0s' $(seq 1 $((w-2))))╮${NC}"
+    local lines=(
+        '    _   _ __  __  ____ ___  ____  _____ '
+        '   | \ | |\ \/ / / ___/ _ \|  _ \| ____|'
+        '   |  \| | \  / | |  | | | | | | |  _|  '
+        '   | |\  | /  \ | |__| |_| | |_| | |___ '
+        '   |_| \_|/_/\_\ \____\___/|____/|_____|'
+    )
+    for line in "${lines[@]}"; do
+        printf "  ${PURPLE}│${NC} ${BOLD}${CYAN}%-48s${NC} ${PURPLE}│${NC}\n" "$line"
+    done
+    printf "  ${PURPLE}│${NC} ${DIM}%-48s${NC} ${PURPLE}│${NC}\n" "               WORKSPACE TERMINAL"
+    echo -e "  ${PURPLE}├$(printf '─%.0s' $(seq 1 $((w-2))))┤${NC}"
+    printf "  ${PURPLE}│${NC} ${WHITE}ST: ${NEON_GREEN}%-6s${WHITE} THM: ${NEON_PINK}%-9s${WHITE} VER: ${CYAN}%-11s${NC} ${PURPLE}│${NC}\n" "ONLINE" "${NX_CURRENT_THEME^^}" "$NX_CODE_VERSION"
+    echo -e "  ${PURPLE}╰$(printf '─%.0s' $(seq 1 $((w-2))))╯${NC}\n"
 }
 
 # ==============================================================================
