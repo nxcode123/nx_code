@@ -4,7 +4,7 @@
 # [1] KONFIGURASI GLOBAL
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_VERSION="v1.0.6"
+NX_VERSION="v1.0.7"
 NX_USER="nxuser"
 
 CYAN='\033[0;36m'
@@ -41,7 +41,6 @@ animate_logo() {
     echo ""
 }
 
-# Live Progress Tracker: Membaca output asli dari background process
 show_live_progress() {
     local msg="$1"
     local pid="$2"
@@ -50,18 +49,16 @@ show_live_progress() {
     local i=0
     local start_time=$(date +%s)
 
-    echo -ne "\033[?25l" # Sembunyikan kursor
+    echo -ne "\033[?25l"
     while kill -0 "$pid" 2>/dev/null; do
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
 
-        # Ambil baris terakhir log, hapus kode warna ANSI, dan batasi panjang karakter agar tidak merusak UI
         local last_line=""
         if [ -f "$log_file" ]; then
             last_line=$(tail -n 1 "$log_file" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\n\r' | cut -c 1-28)
         fi
 
-        # Cetak ulang baris (overwrite)
         printf "\r\033[2K${PROCESS} ${CYAN}%-20s ${NEON_PINK}%s ${PURPLE}[%s] (%ds)${NC}" "$msg" "${spinner[$i]}" "$last_line" "$elapsed"
 
         i=$(( (i + 1) % 10 ))
@@ -71,18 +68,15 @@ show_live_progress() {
     local end_time=$(date +%s)
     local elapsed=$((end_time - start_time))
 
-    # Hapus baris progress dan tampilkan status selesai
     printf "\r\033[2K${SUCCESS} ${WHITE}%-20s ${NEON_GREEN}[DONE] ${PURPLE}(%ds)${NC}\n" "$msg" "$elapsed"
-    echo -ne "\033[?25h" # Munculkan kursor
+    echo -ne "\033[?25h"
 }
 
-# Wrapper eksekusi dengan live log redirect
 execute_task() {
     local msg="$1"
     shift
     local tmp_log=$(mktemp)
 
-    # Eksekusi command di background, output dilempar ke temporary log
     ( "$@" ) > "$tmp_log" 2>&1 &
     local pid=$!
 
@@ -95,13 +89,22 @@ execute_task() {
 }
 
 # ==============================================================================
-# [3] SYSTEM CHECKERS
+# [3] SYSTEM CHECKERS & AUTO-CONFIG
 # ==============================================================================
 is_ubuntu_installed() { proot-distro login ubuntu -- true >/dev/null 2>&1; }
 is_termux_x11_installed() { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed() { proot-distro login ubuntu -- bash -c "command -v startxfce4" >/dev/null 2>&1; }
 is_nonroot_user_setup() { proot-distro login ubuntu -- bash -c "id $NX_USER" >/dev/null 2>&1; }
 is_storage_setup() { [ -d "$HOME/storage/shared" ]; }
+
+ensure_storage_setup() {
+    if ! is_storage_setup; then
+        echo -e "\n${PROCESS} ${CYAN}Konfigurasi Storage otomatis terdeteksi belum aktif...${NC}"
+        echo -e "${PURPLE}[!] Perhatikan layar HP Anda dan pilih 'Allow / Izinkan' jika muncul pop-up izin penyimpanan.${NC}"
+        termux-setup-storage
+        sleep 2
+    fi
+}
 
 # ==============================================================================
 # [4] GUI MANAGEMENT (XFCE4 & TERMUX-X11)
@@ -175,7 +178,6 @@ launch_ubuntu_gui() {
 
     if ! is_xfce4_installed; then
         echo -e "\n${PURPLE}[!] Proses instalasi Desktop Environment butuh waktu tergantung koneksi...${NC}"
-        # Integrasi execute_task agar progress unduhan 'apt' terlihat secara live
         execute_task "Menginstal XFCE4..." proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata -y"
 
         if ! is_xfce4_installed; then
@@ -221,7 +223,6 @@ WRAPEOF
     am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1
     echo -e "${PROCESS} ${CYAN}Buka aplikasi Termux:X11 jika tidak muncul otomatis.${NC}\n"
 
-    # Progress bar ringan saat GUI hidup
     show_live_progress "GUI Active (Termux:X11)" "$X11_PID" "/dev/null"
     wait "$X11_PID" 2>/dev/null
     echo -e "\n${NEON_GREEN}[➔] Sesi GUI tertutup.${NC}"
@@ -320,7 +321,6 @@ case "$1" in
     --ui-only)
         animate_logo
 
-        # Pengecekan riil secara instan, tanpa delay buatan
         echo -ne "${CYAN}Syncing database...... ${NC}"
         echo -e "${NEON_GREEN}[✔] Clear${NC}"
 
@@ -328,7 +328,12 @@ case "$1" in
         is_ubuntu_installed && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Missing${NC}"
 
         echo -ne "${CYAN}Storage Access........ ${NC}"
-        is_storage_setup && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Required (Run: termux-setup-storage)${NC}"
+        if is_storage_setup; then
+            echo -e "${NEON_GREEN}[✔] Ready${NC}"
+        else
+            echo -e "${NEON_PINK}[X] Auto-Triggering Setup...${NC}"
+            termux-setup-storage
+        fi
 
         run_auto_cleaner
         echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk mengakses interface kontrol.${NC}\n"
@@ -342,6 +347,9 @@ esac
 termux-wake-lock
 animate_logo
 
+# Auto-Setup Storage jika belum ada saat instalasi awal
+ensure_storage_setup
+
 execute_task "Updating Repos..." pkg update -y -o Dpkg::Options::="--force-confold"
 execute_task "Upgrading Core..." pkg upgrade -y -o Dpkg::Options::="--force-confold"
 execute_task "Deploy Hypervisor..." pkg install proot-distro coreutils -y -o Dpkg::Options::="--force-confold"
@@ -353,7 +361,6 @@ if ! is_ubuntu_installed; then
     proot-distro remove ubuntu > /dev/null 2>&1
     echo -e "${PURPLE}[!] System akan mengunduh Ubuntu secara live. Mohon tunggu...${NC}"
     echo -e "${CYAN}------------------------------------------------------${NC}"
-    # Membiarkan progress asli dari proot-distro (curl output) muncul di layar
     proot-distro install ubuntu
     echo -e "${CYAN}------------------------------------------------------${NC}"
 fi
