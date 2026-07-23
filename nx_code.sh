@@ -867,45 +867,84 @@ if [ "$1" == "--ui-only" ]; then
 fi
 
 # ==============================================================================
-# MODE INSTALASI AWAL
+# MODE INSTALASI AWAL & PEMBARUAN (DIROMBAK SESUAI PERMINTAAN)
 # ==============================================================================
 cyber_boot_sequence
 animate_logo
 
-say_proc "Injecting Base Dependencies..."
+say_proc "Menjalankan Protokol Instalasi & Pengecekan Sistem..."
 
+# 1. Update
 : > "$NX_STEP_LOG"
-(
-    pkg update -y -o Dpkg::Options::="--force-confold" && \
-    pkg upgrade -y -o Dpkg::Options::="--force-confold" && \
-    pkg install proot-distro htop coreutils x11-repo curl ncurses-utils pulseaudio -y -o Dpkg::Options::="--force-confold"
-) > "$NX_STEP_LOG" 2>&1 &
-show_futuristic_progress "Configuring Repositories" $! "$NX_STEP_LOG"
+(pkg update -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "1. Update" $! "$NX_STEP_LOG"
 
+# 2. Upgrade
 : > "$NX_STEP_LOG"
-(pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
-show_futuristic_progress "Mounting Display Engines" $! "$NX_STEP_LOG"
+(pkg upgrade -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+show_futuristic_progress "2. Upgrade" $! "$NX_STEP_LOG"
 
-if ! is_ubuntu_installed; then
-    say_proc "Generating Virtual Environment..."
-    proot-distro remove ubuntu > /dev/null 2>&1
+# 3. Proot-distro install
+if command -v proot-distro >/dev/null 2>&1; then
+    say_ok "3. Proot-distro install : Sudah terpasang (Skipped)"
+else
+    : > "$NX_STEP_LOG"
+    (pkg install proot-distro -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "3. Proot-distro install" $! "$NX_STEP_LOG"
+fi
 
+# 4. Ubuntu install
+if proot-distro login ubuntu -- true >/dev/null 2>&1; then
+    say_ok "4. Ubuntu install : Sudah terpasang (Skipped)"
+else
     : > "$NX_STEP_LOG"
     (proot-distro install ubuntu > "$NX_STEP_LOG" 2>&1) &
-    show_futuristic_progress "Downloading Ubuntu Core (Bisa memakan waktu)" $! "$NX_STEP_LOG"
+    show_futuristic_progress "4. Ubuntu install (Bisa memakan waktu)" $! "$NX_STEP_LOG"
 fi
 
-echo ""
-if is_ubuntu_installed; then
-    say_ok "OS Core        : ${NEON_GREEN}Operational${NC}"
+# 5. x11-repo
+if dpkg -l x11-repo 2>/dev/null | grep -q '^ii'; then
+    say_ok "5. x11-repo : Sudah terpasang (Skipped)"
 else
-    say_err "OS Core        : Failed"
+    : > "$NX_STEP_LOG"
+    (pkg install x11-repo -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "5. x11-repo" $! "$NX_STEP_LOG"
 fi
 
-if is_termux_x11_installed; then
-    say_ok "Display Server : ${NEON_GREEN}Operational${NC}"
+# 6. termux-x11-nightly
+if dpkg -l termux-x11-nightly 2>/dev/null | grep -q '^ii'; then
+    say_ok "6. termux-x11-nightly : Sudah terpasang (Skipped)"
 else
-    say_err "Display Server : Failed"
+    : > "$NX_STEP_LOG"
+    (pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold" > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "6. termux-x11-nightly" $! "$NX_STEP_LOG"
+fi
+
+# 7. XFCE installing
+if ux_quiet "command -v startxfce4"; then
+    say_ok "7. XFCE installing : Sudah terpasang (Skipped)"
+else
+    say_proc "Menyiapkan repositori Ubuntu..."
+    ux_quiet "apt-get update -y"
+    
+    xfce_total=$(ux "apt-get -s install xfce4 xfce4-goodies" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+    [ -z "$xfce_total" ] && xfce_total=0
+
+    : > "$NX_STEP_LOG"
+    (ux "apt-get install xfce4 xfce4-goodies -y" > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "7. XFCE installing" $! "$NX_STEP_LOG" "$xfce_total"
+fi
+
+# 8. VNC server installing
+if ux_quiet "command -v vncserver" || ux_quiet "dpkg -l tigervnc-standalone-server 2>/dev/null | grep -q '^ii'"; then
+    say_ok "8. VNC server installing : Sudah terpasang (Skipped)"
+else
+    vnc_total=$(ux "apt-get -s install tigervnc-standalone-server" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+    [ -z "$vnc_total" ] && vnc_total=0
+
+    : > "$NX_STEP_LOG"
+    (ux "apt-get install tigervnc-standalone-server -y" > "$NX_STEP_LOG" 2>&1) &
+    show_futuristic_progress "8. VNC server installing" $! "$NX_STEP_LOG" "$vnc_total"
 fi
 
 copy_self_to_home() {
@@ -969,10 +1008,7 @@ EOF
     say_ok "Boot Sequence  : ${NEON_GREEN}Injected${NC}"
 fi
 
-(dpkg -l | grep "^ii" > "$NX_TEMP_DIR/installed_pkgs.txt"; sleep 0.5) 2>/dev/null &
-show_futuristic_progress "Validating Subsystems" $!
-
-echo -e "\n  ${SUCCESS} ${NEON_GREEN}INSTALLATION COMPLETE${NC}"
+echo -e "\n  ${SUCCESS} ${NEON_GREEN}SETUP SELESAI${NC}"
 hr
 
 echo -e "  ${WHITE}Terminal memerlukan proses Restart:${NC}"
