@@ -1,21 +1,57 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
-# [1] KONFIGURASI GLOBAL
+# [1] KONFIGURASI GLOBAL & MANIFES TEMA GITHUB
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_VERSION="v1.0.7"
+NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
+NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
+NX_VERSION="v1.1.1"
 NX_USER="nxuser"
 
-CYAN='\033[0;36m'
-NEON_GREEN='\033[1;32m'
-NEON_PINK='\033[1;95m'
-PURPLE='\033[0;35m'
-WHITE='\033[1;37m'
-NC='\033[0m'
+THEME_DIR="$HOME/.nx_code/themes"
+CONFIG_FILE="$HOME/.nx_code/config"
 
-SUCCESS="${NEON_GREEN}[✔]${NC}"
-PROCESS="${CYAN}[➔]${NC}"
+init_theme_system() {
+    mkdir -p "$THEME_DIR"
+
+    # Muat konfigurasi tema aktif (default: cyberpunk)
+    ACTIVE_THEME="cyberpunk"
+    [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
+    local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
+
+    # Jika file tema lokal belum ada, coba unduh dari GitHub
+    if [ ! -f "$theme_file" ]; then
+        curl -fsSL "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
+    fi
+
+    # Fallback ke cyberpunk jika file kosong/gagal
+    if [ ! -s "$theme_file" ]; then
+        ACTIVE_THEME="cyberpunk"
+        theme_file="$THEME_DIR/cyberpunk.sh"
+        if [ ! -f "$theme_file" ]; then
+            curl -fsSL "$NX_THEMES_BASE_URL/cyberpunk.sh" -o "$theme_file" 2>/dev/null
+        fi
+    fi
+
+    # Load file tema
+    if [ -f "$theme_file" ]; then
+        source "$theme_file"
+    else
+        CYAN='\033[0;36m'
+        NEON_GREEN='\033[1;32m'
+        NEON_PINK='\033[1;95m'
+        PURPLE='\033[0;35m'
+        WHITE='\033[1;37m'
+        NC='\033[0m'
+    fi
+
+    SUCCESS="${NEON_GREEN}[✔]${NC}"
+    PROCESS="${CYAN}[➔]${NC}"
+}
+
+init_theme_system
 
 # ==============================================================================
 # [2] CORE UTILITIES (UI & LIVE PROGRESS)
@@ -36,7 +72,7 @@ animate_logo() {
         printf "${CYAN}%s${NC}\n" "$line"
     done
     echo -e "${PURPLE}------------------------------------------------------${NC}"
-    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}CYBERPUNK ${NX_VERSION}${NC}"
+    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${ACTIVE_THEME} ${NX_VERSION}${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo ""
 }
@@ -107,7 +143,7 @@ ensure_storage_setup() {
 }
 
 # ==============================================================================
-# [4] GUI MANAGEMENT (XFCE4 & TERMUX-X11)
+# [4] GUI MANAGEMENT & DYNAMIC THEME SELECTOR VIA theme.list
 # ==============================================================================
 setup_nonroot_user() {
     proot-distro login ubuntu -- bash -c "
@@ -237,6 +273,74 @@ kill_ubuntu_gui() {
     if [ "$found" -eq 1 ]; then echo -e "${SUCCESS} ${WHITE}Sesi dihentikan.${NC}"; else echo -e "${NEON_PINK}[X]${NC} ${WHITE}Tidak ada sesi berjalan.${NC}"; fi
 }
 
+change_theme_menu() {
+    local manifest="$HOME/.nx_themes_manifest.tmp"
+    rm -f "$manifest"
+
+    # Ambil theme.list dari GitHub
+    if ! curl -fsSL "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
+        # Fallback list jika offline / gagal fetch
+        echo -e "cyberpunk\nmatrix\ndracula\nsynthwave\nocean\nsunset\nemerald\nbloodmoon\nmonokai\narctic\ngold" > "$manifest"
+    fi
+
+    local t_names=() t_descs=()
+    while IFS='|' read -r t_name t_desc; do
+        [ -z "$t_name" ] && continue
+        t_names+=("$t_name")
+        t_descs+=("${t_desc:-Tema kustom}")
+    done < "$manifest"
+    rm -f "$manifest"
+
+    while true; do
+        animate_logo
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -e "${WHITE}PILIH TEMA INTERFACE (DARI theme.list GITHUB)${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+
+        for i in "${!t_names[@]}"; do
+            local name="${t_names[$i]}"
+            local desc="${t_descs[$i]}"
+            local marker=" "
+            [ "$ACTIVE_THEME" == "$name" ] && marker="[✔]"
+            printf " ${PURPLE}[%d]${NC} ${WHITE}%-12s${NC} ${CYAN}- %s${NC} ${NEON_GREEN}%s${NC}\n" "$((i+1))" "$name" "$desc" "$marker"
+        done
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke Menu Utama${NC}"
+        echo -e "${PURPLE}------------------------------------------------------${NC}"
+        echo -ne "${CYAN}[?] Pilih nomor tema:${NC} "
+        read t_choice
+
+        if [ "$t_choice" == "0" ]; then
+            break
+        fi
+
+        local idx=$((t_choice - 1))
+        if [ -n "${t_names[$idx]:-}" ]; then
+            local chosen="${t_names[$idx]}"
+            local theme_file="$THEME_DIR/$chosen.sh"
+
+            # Unduh file tema (.sh) jika belum ada di lokal
+            if [ ! -f "$theme_file" ]; then
+                echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh' dari GitHub...${NC}"
+                curl -fsSL "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
+            fi
+
+            if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
+                echo "ACTIVE_THEME=\"$chosen\"" > "$CONFIG_FILE"
+                echo -e "\n${SUCCESS} ${WHITE}Tema berhasil diubah ke: ${NEON_PINK}$chosen${NC}"
+                sleep 1
+                source "$theme_file"
+                ACTIVE_THEME="$chosen"
+            else
+                echo -e "\n${NEON_PINK}[!] Gagal mengunduh file tema. Periksa koneksi internet.${NC}"
+                sleep 1
+            fi
+        else
+            echo -e "${NEON_PINK}[!] Pilihan tidak valid.${NC}"
+            sleep 1
+        fi
+    done
+}
+
 # ==============================================================================
 # [5] SYSTEM MANAGEMENT
 # ==============================================================================
@@ -295,7 +399,8 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
     echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
     echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI${NC}"
-    echo -e " ${PURPLE}[4]${NC} ${WHITE}Check for Updates${NC}"
+    echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
+    echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for Updates${NC}"
     echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit Interface${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
@@ -308,7 +413,8 @@ show_shortcut_menu() {
             ;;
         2) launch_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
-        4) check_for_update; sleep 1; show_shortcut_menu ;;
+        4) change_theme_menu; sleep 1; show_shortcut_menu ;;
+        5) check_for_update; sleep 1; show_shortcut_menu ;;
         0) echo -e "\n${NEON_GREEN}[➔] System Standby.${NC}\n" ;;
         *) echo -e "\n\033[1;95m[!] ALERT: INVALID DIRECTIVE.\033[0m"; sleep 1; show_shortcut_menu ;;
     esac
@@ -347,7 +453,6 @@ esac
 termux-wake-lock
 animate_logo
 
-# Auto-Setup Storage jika belum ada saat instalasi awal
 ensure_storage_setup
 
 execute_task "Updating Repos..." pkg update -y -o Dpkg::Options::="--force-confold"
