@@ -353,7 +353,7 @@ launch_ubuntu_gui() {
     if ! is_ubuntu_installed; then
         say_err "Ubuntu OS belum diinstal."
         return 1
-    }
+    fi
 
     if ! is_termux_x11_installed; then
         say_err "termux-x11 belum terpasang."
@@ -461,8 +461,17 @@ kill_ubuntu_gui() {
     if [ -f "$NX_TEMP_DIR/.nx_gui_state" ]; then
         # shellcheck disable=SC1091
         source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
-        [ -n "${SESSION_PID:-}" ] && { ux_ok "kill $SESSION_PID 2>/dev/null"; found=1; }
-        [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null && { kill "$X11_PID" 2>/dev/null; found=1; }
+        
+        if [ -n "${SESSION_PID:-}" ]; then
+            ux_ok "kill $SESSION_PID 2>/dev/null"
+            found=1
+        fi
+        
+        if [ -n "${X11_PID:-}" ] && kill -0 "$X11_PID" 2>/dev/null; then
+            kill "$X11_PID" 2>/dev/null
+            found=1
+        fi
+        
         rm -f "$NX_TEMP_DIR/.nx_gui_state"
         sleep 2
     fi
