@@ -1,4 +1,3 @@
-cat << 'EOF' > ~/nx_code.sh
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
@@ -40,16 +39,19 @@ init_system_modules() {
 
     [ "$DEBUG_MODE" == "on" ] && set -x
 
+    # 0a. Inisialisasi Library Fungsi Pendukung (utils.sh)
     local utils_file="$LIB_DIR/utils.sh"
     [ ! -f "$utils_file" ] && curl $NX_CURL_OPTS "$NX_LIB_URL" -o "$utils_file" 2>/dev/null
     sed -i 's/\xc2\xa0/ /g' "$utils_file" 2>/dev/null
     [ -f "$utils_file" ] && source "$utils_file"
 
+    # 0b. Inisialisasi Modul GUI (gui.sh)
     local gui_file="$GUI_DIR/gui.sh"
     [ ! -f "$gui_file" ] && curl $NX_CURL_OPTS "$NX_GUI_URL" -o "$gui_file" 2>/dev/null
     sed -i 's/\xc2\xa0/ /g' "$gui_file" 2>/dev/null
     [ -f "$gui_file" ] && source "$gui_file"
 
+    # 1. Inisialisasi Tema
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
     [ ! -f "$theme_file" ] && curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
     if [ ! -s "$theme_file" ]; then
@@ -62,6 +64,7 @@ init_system_modules() {
         CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m'
     }
 
+    # 2. Inisialisasi Bahasa
     local lang_file="$LANG_DIR/$ACTIVE_LANG.sh"
     [ ! -f "$lang_file" ] && curl $NX_CURL_OPTS "$NX_LANG_BASE_URL/$ACTIVE_LANG.sh" -o "$lang_file" 2>/dev/null
     if [ ! -s "$lang_file" ]; then
@@ -72,6 +75,7 @@ init_system_modules() {
     sed -i 's/\xc2\xa0/ /g' "$lang_file" 2>/dev/null
     [ -f "$lang_file" ] && source "$lang_file"
 
+    # 3. Inisialisasi Logo ASCII
     local logo_file="$LOGOS_DIR/$ACTIVE_LOGO.sh"
     [ ! -f "$logo_file" ] && curl $NX_CURL_OPTS "$NX_LOGOS_BASE_URL/$ACTIVE_LOGO.sh" -o "$logo_file" 2>/dev/null
     if [ ! -s "$logo_file" ]; then
@@ -105,6 +109,9 @@ save_config() {
     echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
 }
 
+# ==============================================================================
+# [2] CORE UTILITIES (UI RENDERERS)
+# ==============================================================================
 animate_logo() {
     command clear
     echo -e "${NEON_PINK}╔══════════════════════════════════════════════════════╗${NC}"
@@ -119,6 +126,9 @@ animate_logo() {
     echo ""
 }
 
+# ==============================================================================
+# [3] MENU INTERACTION SWITCHERS
+# ==============================================================================
 change_theme_menu() {
     local manifest="$HOME/.nx_themes_manifest.tmp"
     rm -f "$manifest"
@@ -253,6 +263,9 @@ toggle_debug_mode() {
     save_config; sleep 1.5
 }
 
+# ==============================================================================
+# [4] ROUTING & DYNAMIC MENU
+# ==============================================================================
 show_shortcut_menu() {
     animate_logo
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
@@ -301,6 +314,9 @@ case "$1" in
         ;;
 esac
 
+# ==============================================================================
+# [5] INSTALLATION BOOTSTRAPPER (AUTO-TRANSITION TO MENU)
+# ==============================================================================
 termux-wake-lock
 animate_logo
 ensure_storage_setup
@@ -319,12 +335,13 @@ fi
 
 copy_self_to_home
 
+# --- AUTO-HEALING & OVERWRITE BASHRC CONFIGURATION ---
 if grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
     sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
 fi
 
 sed -i 's/command rm -i "\$@"/command rm "\$@"/' "$HOME/.bashrc" 2>/dev/null
-cat << 'BASHRC_EOF' >> "$HOME/.bashrc"
+cat << 'EOF' >> "$HOME/.bashrc"
 
 # --- NX_CODE ENVIRONMENT ---
 [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --ui-only
@@ -333,6 +350,7 @@ alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
 
+# Perbaikan fungsi clear agar bersih tanpa memicu welcome screen termux
 clear() {
     command clear
     [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only
@@ -341,14 +359,11 @@ clear() {
 rm() { [ $# -eq 0 ] && { echo -e "\033[1;95m[!] NO TARGET.\033[0m"; return 1; }; command rm "$@"; }
 command_not_found_handle() { echo -e "\033[1;95m[!] UNKNOWN '$1'.\033[0m"; return 127; }
 # ---------------------------
-BASHRC_EOF
+EOF
 
 termux-wake-unlock
 echo -e "\n${NEON_GREEN}[Complete] Sistem Berhasil Diinisialisasi!${NC}"
 sleep 1.5
 
-# PANGGIL MENU UTAMA SECARA OTOMATIS TANPA KELUAR
+# Transisi mulus otomatis membuka menu utama
 exec bash "$HOME/nx_code.sh" --menu
-EOF
-chmod +x ~/nx_code.sh
-sed -i 's/\r$//' ~/nx_code.sh
