@@ -81,24 +81,37 @@ run_auto_cleaner() {
 }
 
 check_for_update() {
-    echo -e "\n${PROCESS} ${CYAN}Memeriksa pembaruan...${NC}"
+    echo -e "\n${PROCESS} ${CYAN}Memeriksa pembaruan sistem...${NC}"
     local tmp_file="$HOME/.nx_code_update_tmp.sh"
+
     if ! curl $NX_CURL_OPTS "$NX_CODE_REPO_RAW_URL" -o "$tmp_file" 2>/dev/null || [ ! -s "$tmp_file" ]; then
-        echo -e "${NEON_PINK}[ERR] Gagal memeriksa update.${NC}"; rm -f "$tmp_file"; return 1
+        echo -e "${NEON_PINK}[ERR] Gagal memeriksa update. Periksa koneksi internet.${NC}"
+        rm -f "$tmp_file"; return 1
     fi
+
     if diff -q "$tmp_file" "$HOME/nx_code.sh" >/dev/null 2>&1; then
-        echo -e "${SUCCESS} ${WHITE}Sistem sudah versi terbaru.${NC}"; rm -f "$tmp_file"; return 0
+        echo -e "${SUCCESS} ${WHITE}Sistem sudah menggunakan versi terbaru.${NC}"
+        rm -f "$tmp_file"; return 0
     fi
-    mv "$tmp_file" "$HOME/nx_code.sh"; sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null; chmod +x "$HOME/nx_code.sh"
-    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
-    exec bash "$HOME/nx_code.sh"
+
+    echo -e "${SUCCESS} ${WHITE}Pembaruan ditemukan! Menerapkan patch...${NC}"
+    mv "$tmp_file" "$HOME/nx_code.sh"
+    sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null
+    chmod +x "$HOME/nx_code.sh"
+
+    echo -e "${SUCCESS} ${WHITE}Merestart sistem secara otomatis...${NC}"
+    sleep 1.5
+    exec bash "$HOME/nx_code.sh" --menu
 }
 
 copy_self_to_home() {
     local dest="$HOME/nx_code.sh"
     local src=$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null)
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
-        cp "$src" "$dest"; sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null; chmod +x "$dest"; return 0
+        cp "$src" "$dest"
+        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null
+        chmod +x "$dest"
+        return 0
     fi
     [ -f "$dest" ] || return 1
 }

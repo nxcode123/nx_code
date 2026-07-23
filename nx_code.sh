@@ -5,7 +5,6 @@
 # ==============================================================================
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
-# Konfigurasi Modul GitHub
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
 
@@ -32,7 +31,6 @@ CONFIG_FILE="$HOME/.nx_code/config"
 init_system_modules() {
     mkdir -p "$THEME_DIR" "$LANG_DIR" "$LOGOS_DIR" "$LIB_DIR" "$GUI_DIR"
 
-    # Default konfigurasi
     ACTIVE_THEME="cyberpunk"
     ACTIVE_LANG="id"
     ACTIVE_LOGO="classic"
@@ -44,11 +42,13 @@ init_system_modules() {
     # 0a. Inisialisasi Library Fungsi Pendukung (utils.sh)
     local utils_file="$LIB_DIR/utils.sh"
     [ ! -f "$utils_file" ] && curl $NX_CURL_OPTS "$NX_LIB_URL" -o "$utils_file" 2>/dev/null
+    sed -i 's/\xc2\xa0/ /g' "$utils_file" 2>/dev/null
     [ -f "$utils_file" ] && source "$utils_file"
 
     # 0b. Inisialisasi Modul GUI (gui.sh)
     local gui_file="$GUI_DIR/gui.sh"
     [ ! -f "$gui_file" ] && curl $NX_CURL_OPTS "$NX_GUI_URL" -o "$gui_file" 2>/dev/null
+    sed -i 's/\xc2\xa0/ /g' "$gui_file" 2>/dev/null
     [ -f "$gui_file" ] && source "$gui_file"
 
     # 1. Inisialisasi Tema
@@ -59,6 +59,7 @@ init_system_modules() {
         theme_file="$THEME_DIR/cyberpunk.sh"
         [ ! -f "$theme_file" ] && curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/cyberpunk.sh" -o "$theme_file" 2>/dev/null
     fi
+    sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null
     [ -f "$theme_file" ] && source "$theme_file" || {
         CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m'
     }
@@ -71,6 +72,7 @@ init_system_modules() {
         lang_file="$LANG_DIR/id.sh"
         [ ! -f "$lang_file" ] && curl $NX_CURL_OPTS "$NX_LANG_BASE_URL/id.sh" -o "$lang_file" 2>/dev/null
     fi
+    sed -i 's/\xc2\xa0/ /g' "$lang_file" 2>/dev/null
     [ -f "$lang_file" ] && source "$lang_file"
 
     # 3. Inisialisasi Logo ASCII
@@ -81,6 +83,7 @@ init_system_modules() {
         logo_file="$LOGOS_DIR/classic.sh"
         [ ! -f "$logo_file" ] && curl $NX_CURL_OPTS "$NX_LOGOS_BASE_URL/classic.sh" -o "$logo_file" 2>/dev/null
     fi
+    sed -i 's/\xc2\xa0/ /g' "$logo_file" 2>/dev/null
     if [ -f "$logo_file" ]; then
         source "$logo_file"
     else
@@ -266,20 +269,20 @@ toggle_debug_mode() {
 show_shortcut_menu() {
     animate_logo
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e "${WHITE}               ${TXT_MENU_TITLE}                 ${NC}"
+    echo -e "${WHITE}               ${TXT_MENU_TITLE:-NX_CODE MENU}                 ${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}${TXT_MENU_1}${NC}"
-    echo -e " ${PURPLE}[2]${NC} ${WHITE}${TXT_MENU_2}${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}${TXT_MENU_3}${NC}"
-    echo -e " ${PURPLE}[4]${NC} ${WHITE}${TXT_MENU_4}${NC}"
-    echo -e " ${PURPLE}[5]${NC} ${WHITE}${TXT_MENU_5}${NC}"
+    echo -e " ${PURPLE}[1]${NC} ${WHITE}${TXT_MENU_1:-Ubuntu CLI Core}${NC}"
+    echo -e " ${PURPLE}[2]${NC} ${WHITE}${TXT_MENU_2:-Ubuntu GUI}${NC}"
+    echo -e " ${PURPLE}[3]${NC} ${WHITE}${TXT_MENU_3:-Kill GUI}${NC}"
+    echo -e " ${PURPLE}[4]${NC} ${WHITE}${TXT_MENU_4:-Change Theme}${NC}"
+    echo -e " ${PURPLE}[5]${NC} ${WHITE}${TXT_MENU_5:-Change Language}${NC}"
     echo -e " ${PURPLE}[6]${NC} ${WHITE}Ganti Logo Art (Logo Switcher)${NC}"
-    echo -e " ${PURPLE}[7]${NC} ${WHITE}${TXT_MENU_6}${NC}"
-    echo -e " ${PURPLE}[8]${NC} ${WHITE}${TXT_MENU_7} (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
+    echo -e " ${PURPLE}[7]${NC} ${WHITE}${TXT_MENU_6:-Check Updates}${NC}"
+    echo -e " ${PURPLE}[8]${NC} ${WHITE}${TXT_MENU_7:-Debug Mode} (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e " ${PURPLE}[0]${NC} ${WHITE}${TXT_MENU_0}${NC}"
+    echo -e " ${PURPLE}[0]${NC} ${WHITE}${TXT_MENU_0:-Exit}${NC}"
     echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -ne "${CYAN}[?] ${TXT_SELECT} ➔ ${NC}"
+    echo -ne "${CYAN}[?] ${TXT_SELECT:-Pilih} ➔ ${NC}"
     read pilihan
 
     case $pilihan in
@@ -304,8 +307,7 @@ case "$1" in
     --menu) show_shortcut_menu; exit 0 ;;
     --ui-only)
         animate_logo
-        echo -ne "${CYAN}[SYS] Ubuntu Integrity...... ${NC}"
-        is_ubuntu_installed && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Missing${NC}"
+        echo -e "${CYAN}[SYS] System Ready & Modular Linked.${NC}"
         run_auto_cleaner
         echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk membuka control center.${NC}\n"
         exit 0
