@@ -2,7 +2,7 @@
 
 # --- KONFIGURASI UPDATE
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
-NX_CODE_VERSION="v1.2.0"
+NX_CODE_VERSION="v0.0.1 [beta]"
 
 # --- KONFIGURASI TEMA WARNA ---
 NX_THEME_FILE="$HOME/.nx_code_theme"
