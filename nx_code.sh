@@ -109,7 +109,6 @@ rotate_log_if_needed() {
 # ==============================================================================
 ux() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1"; }
 ux_quiet() { proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true bash -c "$1" >/dev/null 2>>"$NX_LOG"; }
-ux_ok() { ux_quiet "$1"; }
 
 run_tracked() {
     local label="$1" logfile="$2" total="$3"
@@ -132,7 +131,7 @@ is_nonroot_user_setup()    { ux_quiet "id $NX_USER"; }
 is_storage_setup()         { [ -d "$HOME/storage/shared" ]; }
 
 preseed_debconf_answers() {
-    ux_ok "debconf-set-selections <<'PRESEED'
+    ux_quiet "debconf-set-selections <<'PRESEED'
 keyboard-configuration  keyboard-configuration/layout           select  English (US)
 keyboard-configuration  keyboard-configuration/layoutcode       string  us
 keyboard-configuration  keyboard-configuration/variant          select  English (US)
@@ -321,14 +320,14 @@ if [ -n "$target_w" ]; then
 fi
 dbus-launch --exit-with-session startxfce4
 EOF
-    ux_ok "chmod 755 /usr/local/bin/nx-gui-startup.sh"
+    ux_quiet "chmod 755 /usr/local/bin/nx-gui-startup.sh"
 }
 
 setup_no_sandbox_fix() {
-    ux_ok "mkdir -p /etc/profile.d; echo 'export ELECTRON_DISABLE_SANDBOX=1' > /etc/profile.d/nx_no_sandbox.sh"
+    ux_quiet "mkdir -p /etc/profile.d; echo 'export ELECTRON_DISABLE_SANDBOX=1' > /etc/profile.d/nx_no_sandbox.sh"
     local apps="google-chrome google-chrome-stable chromium chromium-browser"
     for app in $apps; do
-        ux_ok "test -x /usr/bin/$app && ! test -f /usr/local/bin/$app && { printf '#!/bin/bash\nexec /usr/bin/%s --no-sandbox \"\$@\"\n' '$app' > /usr/local/bin/$app; chmod +x /usr/local/bin/$app; }"
+        ux_quiet "test -x /usr/bin/$app && ! test -f /usr/local/bin/$app && { printf '#!/bin/bash\nexec /usr/bin/%s --no-sandbox \"\$@\"\n' '$app' > /usr/local/bin/$app; chmod +x /usr/local/bin/$app; }"
     done
 }
 
@@ -388,7 +387,7 @@ launch_ubuntu_gui() {
     fi
 
     if ! ux_quiet "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]"; then
-        ux_ok "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png"
+        ux_quiet "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png"
     fi
 
     if ! is_nonroot_user_setup; then
@@ -463,7 +462,7 @@ kill_ubuntu_gui() {
         source "$NX_TEMP_DIR/.nx_gui_state" 2>/dev/null
         
         if [ -n "${SESSION_PID:-}" ]; then
-            ux_ok "kill $SESSION_PID 2>/dev/null"
+            ux_quiet "kill $SESSION_PID 2>/dev/null"
             found=1
         fi
         
@@ -478,7 +477,7 @@ kill_ubuntu_gui() {
 
     if pgrep -f "termux-x11" >/dev/null 2>&1 || ux_quiet "pgrep -f 'xfce4-session|dbus-launch|Xwayland'"; then
         pkill -f "termux-x11" >/dev/null 2>&1 && found=1
-        ux_ok "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'" && found=1
+        ux_quiet "pkill -u $NX_USER -f 'xfce4|dbus-launch|Xwayland' 2>/dev/null || pkill -f 'xfce4|dbus-launch|Xwayland'" && found=1
     fi
     pkill -f "pulseaudio" >/dev/null 2>&1 && found=1
 
@@ -926,25 +925,13 @@ if ux_quiet "command -v startxfce4"; then
 else
     say_proc "Menyiapkan repositori Ubuntu..."
     ux_quiet "apt-get update -y"
-    
-    xfce_total=$(ux "apt-get -s install xfce4 xfce4-goodies" 2>/dev/null | grep -Ec '^(Inst|Conf)')
+
+    xfce_total=$(ux "apt-get -s upgrade; apt-get -s install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils" 2>/dev/null | grep -Ec '^(Inst|Conf)')
     [ -z "$xfce_total" ] && xfce_total=0
 
     : > "$NX_STEP_LOG"
-    (ux "apt-get install xfce4 xfce4-goodies -y" > "$NX_STEP_LOG" 2>&1) &
+    (ux "apt-get upgrade -y && apt-get install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xserver-xorg-core sudo pulseaudio-utils alsa-utils -y" > "$NX_STEP_LOG" 2>&1) &
     show_futuristic_progress "7. XFCE installing" $! "$NX_STEP_LOG" "$xfce_total"
-fi
-
-# 8. VNC server installing
-if ux_quiet "command -v vncserver" || ux_quiet "dpkg -l tigervnc-standalone-server 2>/dev/null | grep -q '^ii'"; then
-    say_ok "8. VNC server installing : Sudah terpasang (Skipped)"
-else
-    vnc_total=$(ux "apt-get -s install tigervnc-standalone-server" 2>/dev/null | grep -Ec '^(Inst|Conf)')
-    [ -z "$vnc_total" ] && vnc_total=0
-
-    : > "$NX_STEP_LOG"
-    (ux "apt-get install tigervnc-standalone-server -y" > "$NX_STEP_LOG" 2>&1) &
-    show_futuristic_progress "8. VNC server installing" $! "$NX_STEP_LOG" "$vnc_total"
 fi
 
 copy_self_to_home() {
