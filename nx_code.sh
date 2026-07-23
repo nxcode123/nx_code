@@ -6,7 +6,7 @@
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
-NX_VERSION="v1.1.2"
+NX_VERSION="v1.1.3"
 NX_USER="nxuser"
 
 THEME_DIR="$HOME/.nx_code/themes"
@@ -15,9 +15,13 @@ CONFIG_FILE="$HOME/.nx_code/config"
 init_theme_system() {
     mkdir -p "$THEME_DIR"
 
-    # Muat konfigurasi tema aktif (default: cyberpunk)
+    # Muat konfigurasi tema & debug aktif (default: cyberpunk, debug off)
     ACTIVE_THEME="cyberpunk"
+    DEBUG_MODE="off"
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
+    # Aktifkan trace bash jika debug mode 'on'
+    [ "$DEBUG_MODE" == "on" ] && set -x
 
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
 
@@ -72,7 +76,7 @@ animate_logo() {
         printf "${CYAN}%s${NC}\n" "$line"
     done
     echo -e "${PURPLE}------------------------------------------------------${NC}"
-    echo -e "${WHITE} SYSTEM STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${ACTIVE_THEME} ${NX_VERSION}${NC}"
+    echo -e "${WHITE} STATUS: ${NEON_GREEN}ONLINE${WHITE} | THEME: ${NEON_PINK}${ACTIVE_THEME}${WHITE} | DEBUG: ${NEON_PINK}${DEBUG_MODE^^}${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo ""
 }
@@ -143,7 +147,7 @@ ensure_storage_setup() {
 }
 
 # ==============================================================================
-# [4] GUI MANAGEMENT & DYNAMIC THEME SELECTOR VIA theme.list
+# [4] GUI MANAGEMENT & SETTINGS
 # ==============================================================================
 setup_nonroot_user() {
     proot-distro login ubuntu -- bash -c "
@@ -319,15 +323,16 @@ change_theme_menu() {
             if [ ! -f "$theme_file" ]; then
                 echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh' dari GitHub...${NC}"
                 curl -fsSL "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
-                sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null # Auto-clean NBSP pada file tema
+                sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null
             fi
 
             if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
-                echo "ACTIVE_THEME=\"$chosen\"" > "$CONFIG_FILE"
+                ACTIVE_THEME="$chosen"
+                echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
+                echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
                 echo -e "\n${SUCCESS} ${WHITE}Tema berhasil diubah ke: ${NEON_PINK}$chosen${NC}"
                 sleep 1
                 source "$theme_file"
-                ACTIVE_THEME="$chosen"
             else
                 echo -e "\n${NEON_PINK}[!] Gagal mengunduh file tema. Periksa koneksi internet.${NC}"
                 sleep 1
@@ -337,6 +342,23 @@ change_theme_menu() {
             sleep 1
         fi
     done
+}
+
+toggle_debug_mode() {
+    if [ "$DEBUG_MODE" == "on" ]; then
+        DEBUG_MODE="off"
+        set +x
+        echo -e "\n${NEON_PINK}[!] Debug Mode DIMATIKAN.${NC}"
+    else
+        DEBUG_MODE="on"
+        set -x
+        echo -e "\n${NEON_GREEN}[✔] Debug Mode DIHIDUPKAN (Trace aktif).${NC}"
+    fi
+
+    # Simpan state ke config file
+    echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
+    echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
+    sleep 1.5
 }
 
 # ==============================================================================
@@ -370,7 +392,7 @@ check_for_update() {
 
     echo -e "${SUCCESS} ${WHITE}Update dipasang! Merestart sistem...${NC}"
     mv "$tmp_file" "$HOME/nx_code.sh"
-    sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null # Auto-clean NBSP saat update
+    sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null
     chmod +x "$HOME/nx_code.sh"
     sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
     sleep 1
@@ -383,7 +405,7 @@ copy_self_to_home() {
 
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
         cp "$src" "$dest"
-        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null # Auto-clean NBSP saat instalasi awal
+        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null
         chmod +x "$dest"
         return 0
     fi
@@ -403,6 +425,7 @@ show_shortcut_menu() {
     echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI${NC}"
     echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
     echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for Updates${NC}"
+    echo -e " ${PURPLE}[6]${NC} ${WHITE}Toggle Debug Mode (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit Interface${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
@@ -418,6 +441,7 @@ show_shortcut_menu() {
         3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
         4) change_theme_menu; sleep 1; show_shortcut_menu ;;
         5) check_for_update; sleep 1; show_shortcut_menu ;;
+        6) toggle_debug_mode; sleep 1; show_shortcut_menu ;;
         0) echo -e "\n${NEON_GREEN}[➔] System Standby.${NC}\n" ;;
         *) echo -e "\n\033[1;95m[!] ALERT: INVALID DIRECTIVE.\033[0m"; sleep 1; show_shortcut_menu ;;
     esac
