@@ -6,7 +6,7 @@
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
-NX_VERSION="v1.1.1"
+NX_VERSION="v1.1.2"
 NX_USER="nxuser"
 
 THEME_DIR="$HOME/.nx_code/themes"
@@ -277,10 +277,8 @@ change_theme_menu() {
     local manifest="$HOME/.nx_themes_manifest.tmp"
     rm -f "$manifest"
 
-    # Ambil theme.list dari GitHub
     if ! curl -fsSL "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
-        # Fallback list jika offline / gagal fetch
-        echo -e "cyberpunk\nmatrix\ndracula\nsynthwave\nocean\nsunset\nemerald\nbloodmoon\nmonokai\narctic\ngold" > "$manifest"
+        echo -e "cyberpunk|Cyberpunk Neon\nmatrix|Matrix Green\ndracula|Dracula Dark\nsynthwave|Synthwave 84\nocean|Oceanic Deep\nsunset|Sunset Orange\nemerald|Emerald Forest\nbloodmoon|Blood Moon\nmonokai|Monokai Pro\narctic|Arctic Frost\ngold|Cyber Gold" > "$manifest"
     fi
 
     local t_names=() t_descs=()
@@ -318,10 +316,10 @@ change_theme_menu() {
             local chosen="${t_names[$idx]}"
             local theme_file="$THEME_DIR/$chosen.sh"
 
-            # Unduh file tema (.sh) jika belum ada di lokal
             if [ ! -f "$theme_file" ]; then
                 echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh' dari GitHub...${NC}"
                 curl -fsSL "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
+                sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null # Auto-clean NBSP pada file tema
             fi
 
             if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
@@ -371,7 +369,9 @@ check_for_update() {
     fi
 
     echo -e "${SUCCESS} ${WHITE}Update dipasang! Merestart sistem...${NC}"
-    mv "$tmp_file" "$HOME/nx_code.sh" && chmod +x "$HOME/nx_code.sh"
+    mv "$tmp_file" "$HOME/nx_code.sh"
+    sed -i 's/\xc2\xa0/ /g' "$HOME/nx_code.sh" 2>/dev/null # Auto-clean NBSP saat update
+    chmod +x "$HOME/nx_code.sh"
     sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
     sleep 1
     exec bash "$HOME/nx_code.sh"
@@ -382,7 +382,9 @@ copy_self_to_home() {
     local src=$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null)
 
     if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
-        cp "$src" "$dest" && chmod +x "$dest"
+        cp "$src" "$dest"
+        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null # Auto-clean NBSP saat instalasi awal
+        chmod +x "$dest"
         return 0
     fi
     [ -f "$dest" ] || return 1
@@ -394,13 +396,14 @@ copy_self_to_home() {
 show_shortcut_menu() {
     animate_logo
     echo -e "${NEON_PINK}======================================================${NC}"
-    echo -e "${WHITE}            NX_CODE CORE INTERFACE ${NX_VERSION}              ${NC}"
+    echo -e "${WHITE}             NX_CODE MENU ${NX_VERSION}              ${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI${NC}"
     echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 via Termux:X11)${NC}"
     echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Ubuntu GUI${NC}"
     echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
     echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for Updates${NC}"
+    echo -e "${NEON_PINK}======================================================${NC}"
     echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit Interface${NC}"
     echo -e "${NEON_PINK}======================================================${NC}"
     echo -ne "${CYAN}[?] Select Option:${NC} "
