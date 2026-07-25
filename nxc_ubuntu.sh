@@ -36,7 +36,6 @@ run_with_spinner() {
     local text="$1"
     local cmd="$2"
 
-    # Jalankan perintah di background, sembunyikan output ke LOG
     eval "$cmd" >> "$LOG_FILE" 2>&1 &
     local pid=$!
 
@@ -77,7 +76,6 @@ run_with_progress_bar() {
     local interval=0.2
 
     while kill -0 "$pid" 2>/dev/null; do
-        # Hitung persentase
         local percent=$(( (elapsed * 100) / (est_time * 5) ))
         if [ "$percent" -ge 98 ]; then percent=98; fi
 
@@ -142,16 +140,64 @@ run_with_spinner "Menginjeksi nxc1.sh dari GitHub" "curl -s -L 'https://raw.gith
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
 
-# 1. BASHRC TERMUX (Jembatan untuk masuk Ubuntu otomatis)
+# ===================================================================
+# 1. BASHRC TERMUX (Jembatan Auto-Login & AUTO-UPDATE nxc_ubuntu.sh)
+# ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     export DEBIAN_FRONTEND=noninteractive
+
+    # --- BLOK AUTO-UPDATE NXC_UBUNTU.SH ---
+    CYAN='\033[1;36m'
+    YELLOW='\033[1;33m'
+    GREEN='\033[1;32m'
+    NC='\033[0m'
+
+    LOCAL_FILE="$HOME/nxc_ubuntu.sh"
+    TMP_FILE="$PREFIX/tmp/nxc_ubuntu_new.sh"
+    GITHUB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_ubuntu.sh"
+
+    echo -e "${CYAN}[*] Memeriksa pembaruan sistem (nxc_ubuntu.sh)...${NC}"
+
+    # Cek GitHub dengan batas waktu max 3 detik agar tidak memblokir saat offline
+    if curl -s -L --max-time 3 "$GITHUB_URL" -o "$TMP_FILE"; then
+        if [ -f "$LOCAL_FILE" ]; then
+            # Bandingkan isi file lokal dengan file di GitHub
+            if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
+                echo -e "${YELLOW}[!] Ditemukan versi baru dari nxc_ubuntu.sh di GitHub!${NC}"
+                read -p "Apakah Anda ingin mengupdate dan menjalankan ulang setup? [y/N]: " confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    echo -e "${GREEN}[*] Mengupdate file sistem...${NC}"
+                    mv "$TMP_FILE" "$LOCAL_FILE"
+                    chmod +x "$LOCAL_FILE"
+                    echo -e "${GREEN}[*] Memulai ulang proses setup...${NC}"
+                    sleep 1
+                    exec bash "$LOCAL_FILE"
+                else
+                    echo -e "${CYAN}[*] Pembaruan ditunda.${NC}"
+                    rm -f "$TMP_FILE"
+                fi
+            else
+                rm -f "$TMP_FILE" # File tidak ada perubahan, hapus temp
+            fi
+        else
+            # Jika file lokal tidak ada, simpan hasil download sebagai patokan versi
+            mv "$TMP_FILE" "$LOCAL_FILE"
+            chmod +x "$LOCAL_FILE"
+        fi
+    fi
+    # --------------------------------------
+
+    # Sinkronisasi rutin Termux (disembunyikan)
     pkg update -y > /dev/null 2>&1 && apt-get upgrade -y > /dev/null 2>&1
+
     exec proot-distro login ubuntu
 fi
 EOF_BASHRC
 
-# 2. BASHRC UBUNTU (Menanamkan alias "menu" & Auto-run)
+# ===================================================================
+# 2. BASHRC UBUNTU (Alias Menu & Auto-run)
+# ===================================================================
 cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 # Perintah panggilan cepat (Alias)
 alias menu='bash $HOME/nxc1.sh'
@@ -168,6 +214,6 @@ tput cnorm # Kembalikan kursor
 echo -e "\n${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${NEON_CYAN}║ ${NEON_GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NEON_CYAN}║${NC}"
 echo -e "${NEON_CYAN}╚══════════════════════════════════════════════════╝${NC}"
-echo -e "${NEON_YELLOW} [1] Skrip berhasil ditanamkan ke dalam sistem.${NC}"
+echo -e "${NEON_YELLOW} [1] Auto-Updater telah ditanamkan ke akses utama.${NC}"
 echo -e "${NEON_YELLOW} [2] Perintah 'menu' telah dipasang di Ubuntu.${NC}"
 echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"

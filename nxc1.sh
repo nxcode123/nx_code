@@ -16,9 +16,10 @@ while true; do
     echo -e "${YELLOW} [1]${NC} System Status & Resource Info"
     echo -e "${YELLOW} [2]${NC} Update & Upgrade Ubuntu Packages"
     echo -e "${YELLOW} [3]${NC} Buka Bash Shell Biasa (CLI)"
+    echo -e "${YELLOW} [4]${NC} Refresh / Update Menu Script"
     echo -e "${YELLOW} [0]${NC} Keluar / Exit ke Termux Host"
     echo -e "${CYAN}==================================================${NC}"
-    read -p "Pilih opsi [0-3]: " choice
+    read -p "Pilih opsi [0-4]: " choice
 
     case $choice in
         1)
@@ -41,6 +42,25 @@ while true; do
         3)
             echo -e "${GREEN}[*] Masuk ke Bash Shell Ubuntu. Ketik 'exit' untuk kembali ke menu.${NC}"
             bash
+            ;;
+        4)
+            clear
+            echo -e "${CYAN}[*] Menghubungkan ke Server Satelit (GitHub)...${NC}"
+            echo -e "${YELLOW}[*] Mengunduh pembaruan script...${NC}"
+
+            # URL GitHub dari script menu Anda
+            GITHUB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh"
+
+            if curl -s -L "$GITHUB_URL" -o "$HOME/nxc1.sh"; then
+                chmod +x "$HOME/nxc1.sh"
+                echo -e "${GREEN}[✔] Neural Link disinkronkan! Script berhasil diperbarui.${NC}"
+                echo -e "${GREEN}[*] Memuat ulang antarmuka...${NC}"
+                sleep 1.5
+                exec bash "$HOME/nxc1.sh" # Perintah ini akan langsung me-restart script
+            else
+                echo -e "${RED}[✖] Gagal terhubung ke GitHub! Periksa koneksi internet Anda.${NC}"
+                read -p "Tekan [Enter] untuk kembali ke menu..."
+            fi
             ;;
         0)
             echo -e "${RED}[*] Memutus Neural Link... Kembali ke Termux.${NC}"
