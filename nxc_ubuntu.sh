@@ -135,7 +135,7 @@ if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
         source "$NXC_LIB_LOCAL"
     fi
 
-    echo -e "\033[1;36m[*] Memeriksa pembaruan sistem (nxc_ubuntu.sh)...\033[0m"
+    echo -e "\033[1;36m[*] Memeriksa pembaruan sistem...\033[0m"
 
     if command -v download_and_validate &> /dev/null; then
         if [ -f "\$LOCAL_FILE" ]; then
