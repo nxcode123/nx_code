@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # ==============================================================================
-# PROJECT: NXC - TERMUX-UBUNTU CONTROL MENU
-# DESCRIPTION: Interactive Control Panel for Proot Ubuntu Environment
-# VERSION: 1.0.0
+# PROJECT: NXC - TERMUX-UBUNTU
+# DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
+# VERSION: 1.1.0
 # ==============================================================================
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.1.0"
 
 # Warna ANSI untuk estetika cyberpunk / futuristic
 CYAN='\033[1;36m'
@@ -14,21 +14,21 @@ GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 RED='\033[1;31m'
 PURPLE='\033[1;35m'
+DARK_GRAY='\033[38;5;238m'
 NC='\033[0m' # No Color
 
 export DEBIAN_FRONTEND=noninteractive
 
 while true; do
     clear
-    echo -e "${CYAN}==================================================${NC}"
-    echo -e "${PURPLE}     N X C - U B U N T U   C O N T R O L [v${SCRIPT_VERSION}] ${NC}"
-    echo -e "${CYAN}==================================================${NC}"
+    echo -e "${GREEN}NXC - TERMUX-UBUNTU // CONTROL [v${SCRIPT_VERSION}]${NC}"
+    echo -e "${DARK_GRAY}----------------------------------------${NC}"
     echo -e "${YELLOW} [1]${NC} System Status & Resource Info"
     echo -e "${YELLOW} [2]${NC} Update & Upgrade Ubuntu Packages"
     echo -e "${YELLOW} [3]${NC} Buka Bash Shell Biasa (CLI)"
     echo -e "${YELLOW} [4]${NC} Refresh / Update Menu Script"
     echo -e "${YELLOW} [0]${NC} Keluar / Exit ke Termux Host"
-    echo -e "${CYAN}==================================================${NC}"
+    echo -e "${DARK_GRAY}----------------------------------------${NC}"
     read -p "Pilih opsi [0-4]: " choice
 
     case $choice in
