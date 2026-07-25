@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.5.0
+# VERSION: 1.6.0
 # ==============================================================================
 
-SCRIPT_VERSION="1.5.0"
+SCRIPT_VERSION="1.6.0"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -144,9 +144,10 @@ sleep 0.5 2>/dev/null
 # 2. Storage Setup Diletakkan di Awal
 run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
 
-# 3. Membersihkan Apt Locks dan Cache Lama
-echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan kunci repositori sistem...${NC}"
+# 3. Membersihkan Apt Locks, Status Macet, dan Cache Lama (Self-Healing State)
+echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan memperbaiki status sistem...${NC}"
 rm -f "$PREFIX/var/lib/dpkg/lock*" "$PREFIX/var/cache/apt/archives/lock*" > /dev/null 2>&1
+dpkg --configure -a > /dev/null 2>&1
 apt-get clean > /dev/null 2>&1
 
 # 4. Update & Upgrade Termux dengan Fallback Aman
@@ -160,16 +161,38 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Modul Proot & Curl ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 6. Install Ubuntu Rootfs via Proot-Distro
+# 6. Install Ubuntu Rootfs via Proot-Distro dengan Self-Healing Korup
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
-if [ ! -d "$UBUNTU_ROOT" ]; then
+if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
+    if [ -d "$UBUNTU_ROOT" ]; then
+        echo -e "${NEON_YELLOW}[!] Mendeteksi direktori Ubuntu korup. Membersihkan sisa data secara otomatis...${NC}"
+        rm -rf "$UBUNTU_ROOT"
+    fi
     run_with_progress_bar "Mengunduh inti OS Ubuntu Core (Harap tunggu)" 40 "proot-distro install ubuntu"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 7. Injeksi Skrip Menu dari GitHub dengan Path & Direktori yang Aman
-run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "mkdir -p \"$UBUNTU_ROOT/root\" && curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
+# 7. Fungsi Unduh dengan Mekanisme Retry Otomatis (Anti-Error 23/Network Glitch)
+download_menu_script() {
+    local url="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh"
+    local target="$UBUNTU_ROOT/root/nxc1.sh"
+    
+    mkdir -p "$UBUNTU_ROOT/root"
+    
+    for attempt in {1..3}; do
+        if curl -s -L --max-time 10 "$url" -o "$target"; then
+            if [ -s "$target" ]; then
+                chmod +x "$target"
+                return 0
+            fi
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "download_menu_script"
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
 
@@ -240,7 +263,7 @@ EOF_UBUNTU_BASHRC
 sleep 1 2>/dev/null
 printf "\033[?25h" # Kembalikan kursor
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.5.0) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Perbaikan direktori target pengunduhan nxc1.sh.${NC}"
-echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif.${NC}"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.6.0) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Self-Healing: Pembersihan otomatis rootfs korup aktif.${NC}"
+echo -e "${NEON_YELLOW} [2] Anti-Error 23: Fitur retry download otomatis aktif.${NC}"
 echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
