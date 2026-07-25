@@ -9,11 +9,9 @@ PURPLE='\033[1;35m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
-# Non-interaktif untuk menghindari prompt pilihan saat upgrade
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTCHANGES_FRONTEND=none
 
-# Fungsi Banner / Logo Futuristis
 show_banner() {
     clear
     echo -e "${CYAN}==================================================${NC}"
@@ -23,7 +21,6 @@ show_banner() {
     echo -e "${CYAN}==================================================${NC}\n"
 }
 
-# Fungsi untuk menampilkan loading bar futuristik [████░░░░] 0-100%
 draw_progress() {
     local current=$1
     local total=$2
@@ -39,7 +36,6 @@ draw_progress() {
     printf "\r${CYAN}    [${GREEN}%s${CYAN}] %3d%% ${NC}" "$bar" "$percentage"
 }
 
-# Fungsi untuk menjalankan perintah di background dengan spinner futuristik (Braille dots)
 run_with_spinner() {
     local text="$1"
     shift
@@ -68,13 +64,12 @@ run_with_spinner() {
     return $status
 }
 
-# Fungsi untuk progress bar upgrade/unduhan
 run_with_progress_bar() {
     local text="$1"
     local total_steps=$2
     local command_to_run="$3"
     
-    echo -e "${YELLOW}%s${NC}" "$text"
+    echo -e "${YELLOW}${text}${NC}"
     
     eval "$command_to_run" > /dev/null 2>&1 &
     local pid=$!
@@ -107,25 +102,33 @@ run_with_progress_bar "    Mengoptimasi dan mengupgrade sistem inti:" 25 "apt-ge
 
 # 2. Setup Storage
 echo -e "${BLUE}[*] Menghubungkan Neural Storage (Penyimpanan HP)...${NC}"
-echo -e "${PURPLE}    (Berikan izin akses jika muncul pop-up di layar)${NC}"
 termux-setup-storage
 sleep 1
 
-# 3. Install Proot-Distro
-if ! command -v proot-distro &> /dev/null; then
-    run_with_progress_bar "${BLUE}[*] Mengunduh modul Proot-Distro matrix:${NC}" 30 "pkg install proot-distro -y"
+# 3. Install Proot-Distro & Curl
+if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
+    run_with_progress_bar "${BLUE}[*] Mengunduh modul pendukung matrix (Proot & Curl):${NC}" 30 "pkg install proot-distro curl -y"
 else
-    echo -e "${GREEN}[✔] Modul Proot-Distro sudah ter-install.${NC}"
+    echo -e "${GREEN}[✔] Modul pendukung sudah ter-install.${NC}"
 fi
 
 # 4. Install Ubuntu via Proot-Distro
-if [ ! -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
+if [ ! -d "$UBUNTU_ROOT" ]; then
     run_with_progress_bar "${BLUE}[*] Mengunduh inti OS Ubuntu Core (Harap tunggu)...${NC}" 50 "proot-distro install ubuntu"
 else
     echo -e "${GREEN}[✔] Inti OS Ubuntu sudah ter-install.${NC}"
 fi
 
-# 5. Konfigurasi Startup Bashrc
+# 5. Otomatis Download nxc1.sh dari GitHub nxcode123 langsung ke Ubuntu
+echo -e "${BLUE}[*] Mengunduh skrip Menu (nxc1.sh) dari GitHub nxcode123...${NC}"
+if [ -d "$UBUNTU_ROOT/root" ]; then
+    curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/root/nxc1.sh"
+    chmod +x "$UBUNTU_ROOT/root/nxc1.sh"
+    echo -e "${GREEN}[✔] Skrip nxc1.sh berhasil disuntikkan ke Ubuntu.${NC}"
+fi
+
+# 6. Konfigurasi Startup Bashrc Termux (Dengan fitur bypass TERMUX_CATCH)
 echo -e "${BLUE}[*] Menulis ulang skrip jembatan utama (.bashrc)...${NC}"
 BASHRC_FILE="$HOME/.bashrc"
 
@@ -133,7 +136,7 @@ cat << 'EOF_BASHRC' > "$BASHRC_FILE"
 # ==========================================
 # NXC NEURAL LINK - AUTOMATIC UBUNTU BRIDGE
 # ==========================================
-if [ -z "$PROOT_DISTRO_EDITION" ]; then
+if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     export DEBIAN_FRONTEND=noninteractive
     echo -e "\033[1;36m[*] Sinkronisasi Matrix Berkala...\033[0m"
     pkg update -y > /dev/null 2>&1 && apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' > /dev/null 2>&1
@@ -142,13 +145,25 @@ if [ -z "$PROOT_DISTRO_EDITION" ]; then
     exec proot-distro login ubuntu
 fi
 EOF_BASHRC
+
+# 7. Konfigurasi .bashrc di dalam Ubuntu agar otomatis memanggil menu nxc1.sh
+UBUNTU_BASHRC="$UBUNTU_ROOT/root/.bashrc"
+cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_BASHRC"
+# ==========================================
+# NXC UBUNTU AUTO-MENU INJECTOR
+# ==========================================
+if [ -f "$HOME/nxc1.sh" ]; then
+    bash "$HOME/nxc1.sh"
+fi
+EOF_UBUNTU_BASHRC
+
 sleep 1
 
 clear
 echo -e "${CYAN}==================================================${NC}"
-echo -e "${GREEN}   NEURAL LINK BERHASIL DIKONFIGURASI!          ${NC}"
+echo -e "${GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NC}"
 echo -e "${CYAN}==================================================${NC}"
-echo -e "${YELLOW} Silakan restart aplikasi Termux Anda${NC}"
-echo -e "${YELLOW} (Tutup total lalu buka kembali), maka terminal${NC}"
-echo -e "${YELLOW} akan otomatis masuk ke Ubuntu CLI secara instan.${NC}"
+echo -e "${YELLOW} 1. nxc1.sh otomatis di-download dari GitHub.${NC}"
+echo -e "${YELLOW} 2. Silakan restart aplikasi Termux Anda.${NC}"
+echo -e "${YELLOW} 3. Termux akan masuk ke Ubuntu & membuka menu.${NC}"
 echo -e "${CYAN}==================================================${NC}"
