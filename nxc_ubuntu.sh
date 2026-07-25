@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
+# Source file: nxc_ubuntu.sh
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
 # VERSION: 1.2.3
@@ -135,7 +136,6 @@ if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
     fi
 
     echo -e "\033[1;36m[*] Memeriksa pembaruan sistem (nxc_ubuntu.sh)...\033[0m"
-    echo -e "\033[1;36m[i] Tip: jalankan 'TERMUX_CATCH=true bash' untuk tetap di Termux biasa.\033[0m"
 
     if command -v download_and_validate &> /dev/null; then
         if [ -f "\$LOCAL_FILE" ]; then
@@ -148,12 +148,15 @@ if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
                     exec bash "\$LOCAL_FILE"
                 else
                     rm -f "\$TMP_FILE"
+                    echo -e "\033[1;32m[Done] Up to date\033[0m"
                 fi
             else
                 rm -f "\$TMP_FILE"
+                echo -e "\033[1;32m[Done] Up to date\033[0m"
             fi
         else
             download_and_validate "\$GITHUB_URL" "\$LOCAL_FILE" 1 3 2>/dev/null
+            echo -e "\033[1;32m[Done] Up to date\033[0m"
         fi
     fi
 
