@@ -1,10 +1,12 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
-# PROJECT: NXC - UBUNTU NEURAL LINK (PRODUCTION GRADE)
-# AUTHOR: Professional DevOps / Cyberpunk Architecture
+# PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
+# VERSION: 1.5.0
 # ==============================================================================
+
+SCRIPT_VERSION="1.5.0"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -35,11 +37,8 @@ fi
 show_banner() {
     clear
     printf "\033[?25l"
-    echo -e "${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${NEON_CYAN}║ ${NEON_PINK}    N X C - U B U N T U   N E U R A L   L I N K    ${NEON_CYAN}║${NC}"
-    echo -e "${NEON_CYAN}╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${NEON_CYAN}║ ${NEON_GREEN}[SYSTEM MATRIX: ONLINE] ${DARK_GRAY}| ${NEON_YELLOW}[BUILD: PRO-EDITION] ${NEON_CYAN}║${NC}"
-    echo -e "${NEON_CYAN}╚══════════════════════════════════════════════════╝${NC}\n"
+    echo -e "${NEON_GREEN}NXC - TERMUX-UBUNTU // PRO-EDITION [v${SCRIPT_VERSION}]${NC}"
+    echo -e "${DARK_GRAY}----------------------------------------${NC}\n"
 }
 
 log_msg() {
@@ -49,22 +48,22 @@ log_msg() {
 run_with_spinner() {
     local text="$1"
     local cmd="$2"
-
+    
     log_msg "START: $text"
     eval "$cmd" >> "$LOG_FILE" 2>&1 &
     local pid=$!
-
+    
     local spin='⣾⣽⣻⢿⡿⣟⣯⣷'
     local i=0
-
+    
     printf "${NEON_CYAN}[*] ${WHITE}%s ${NC}" "$text"
-
+    
     while kill -0 "$pid" 2>/dev/null; do
         printf "\b${NEON_PINK}%s${NC}" "${spin:i:1}"
         i=$(( (i+1) % 8 ))
         sleep 0.1 2>/dev/null || read -t 0.1
     done
-
+    
     wait "$pid"
     local status=$?
     if [ $status -eq 0 ]; then
@@ -84,37 +83,37 @@ run_with_progress_bar() {
     local text="$1"
     local est_time="$2"
     local cmd="$3"
-
+    
     log_msg "START (Progress): $text"
     echo -e "${NEON_CYAN}[*] ${WHITE}${text}${NC}"
-
+    
     eval "$cmd" >> "$LOG_FILE" 2>&1 &
     local pid=$!
-
+    
     local width=35
     local elapsed=0
-    local interval=0.2
-
+    local interval=0.2 
+    
     while kill -0 "$pid" 2>/dev/null; do
         local percent=$(( (elapsed * 100) / (est_time * 5) ))
         if [ "$percent" -ge 98 ]; then percent=98; fi
-
+        
         local filled=$(( (percent * width) / 100 ))
         local empty=$(( width - filled ))
-
+        
         local bar=""
         for ((i=0; i<filled; i++)); do bar+="█"; done
         for ((i=0; i<empty; i++)); do bar+="░"; done
-
+        
         printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${NEON_GREEN}%-${width}s${NEON_PINK}] ${NEON_YELLOW}%3d%% ${NC}" "$bar" "$percent"
-
+        
         sleep $interval 2>/dev/null || read -t 0.2
         elapsed=$((elapsed + 1))
     done
-
+    
     wait "$pid"
     local status=$?
-
+    
     if [ $status -eq 0 ]; then
         local bar=""
         for ((i=0; i<width; i++)); do bar+="█"; done
@@ -142,10 +141,10 @@ echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan default (Hushlogin).
 touch "$HOME/.hushlogin"
 sleep 0.5 2>/dev/null
 
-# 2. Storage Setup Diletakkan di Awal (Sesuai permintaan Anda)
+# 2. Storage Setup Diletakkan di Awal
 run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
 
-# 3. Membersihkan Apt Locks dan Cache Lama (Solusi Mirror Sync Error)
+# 3. Membersihkan Apt Locks dan Cache Lama
 echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan kunci repositori sistem...${NC}"
 rm -f "$PREFIX/var/lib/dpkg/lock*" "$PREFIX/var/cache/apt/archives/lock*" > /dev/null 2>&1
 apt-get clean > /dev/null 2>&1
@@ -169,8 +168,8 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 7. Injeksi Skrip Menu dari GitHub dengan Path yang Aman
-run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
+# 7. Injeksi Skrip Menu dari GitHub dengan Path & Direktori yang Aman
+run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "mkdir -p \"$UBUNTU_ROOT/root\" && curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
 
@@ -180,19 +179,19 @@ echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     export DEBIAN_FRONTEND=noninteractive
-
+    
     # --- PRO-GRADE AUTO-UPDATE NXC_UBUNTU.SH ---
     CYAN='\033[1;36m'
     YELLOW='\033[1;33m'
     GREEN='\033[1;32m'
     NC='\033[0m'
-
+    
     LOCAL_FILE="$HOME/nxc_ubuntu.sh"
     TMP_FILE="$PREFIX/tmp/nxc_ubuntu_new.sh"
     GITHUB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_ubuntu.sh"
-
+    
     echo -e "${CYAN}[*] Memeriksa pembaruan sistem (nxc_ubuntu.sh)...${NC}"
-
+    
     if curl -s -L --max-time 3 "$GITHUB_URL" -o "$TMP_FILE"; then
         if [ -f "$LOCAL_FILE" ]; then
             if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
@@ -220,7 +219,7 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     # ------------------------------------------
 
     pkg update -y > /dev/null 2>&1 && apt-get upgrade -y > /dev/null 2>&1
-
+    
     exec proot-distro login ubuntu
 fi
 EOF_BASHRC
@@ -241,10 +240,7 @@ EOF_UBUNTU_BASHRC
 sleep 1 2>/dev/null
 printf "\033[?25h" # Kembalikan kursor
 
-echo -e "\n${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
-echo -e "${NEON_CYAN}║ ${NEON_GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NEON_CYAN}║${NC}"
-echo -e "${NEON_CYAN}╚══════════════════════════════════════════════════╝${NC}"
-echo -e "${NEON_YELLOW} [1] Urutan optimal: Storage -> Clean Cache -> Update.${NC}"
-echo -e "${NEON_YELLOW} [2] Proteksi Apt Locks & Auto-Diagnostic Log Aktif.${NC}"
-echo -e "${NEON_YELLOW} [3] Perintah 'menu' & Auto-Updater tertanam sempurna.${NC}"
-echo -e "${NEON_YELLOW} [4] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.5.0) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Perbaikan direktori target pengunduhan nxc1.sh.${NC}"
+echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif.${NC}"
+echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
