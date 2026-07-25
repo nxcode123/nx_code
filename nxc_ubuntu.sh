@@ -3,14 +3,15 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.2.5
+# VERSION: 1.2.6
 # Source file: nxc_ubuntu.sh
-# CHANGELOG v1.2.5: 
+# CHANGELOG v1.2.6: 
+# - Fix bug pemanggilan 'menu' di Ubuntu (menggunakan global binary file)
 # - Menghapus teks "Memeriksa pembaruan..." saat buka Termux (Silent Check)
-# - Fix FATAL ERROR pada instalasi Ubuntu (mengganti rm -rf dengan proot-distro remove)
+# - Fix FATAL ERROR pada instalasi Ubuntu (proot-distro remove)
 # ==============================================================================
 
-SCRIPT_VERSION="1.2.5"
+SCRIPT_VERSION="1.2.6"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
 NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
@@ -171,11 +172,22 @@ fi
 EOF_BASHRC
 
 # ===================================================================
-# 9. BASHRC UBUNTU
+# 9. BASHRC UBUNTU & SYSTEM BINARY
 # ===================================================================
-cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
-alias menu='bash /root/nxc1.sh'
+# 1. Membuat file eksekusi global 'menu' (100% Works)
+mkdir -p "$UBUNTU_ROOT/usr/local/bin"
+cat << 'EOF_MENU' > "$UBUNTU_ROOT/usr/local/bin/menu"
+#!/bin/bash
+if [ -f "/root/nxc1.sh" ]; then
+    bash "/root/nxc1.sh"
+else
+    echo -e "\033[1;31m[!] Error: File /root/nxc1.sh belum terunduh.\033[0m"
+fi
+EOF_MENU
+chmod +x "$UBUNTU_ROOT/usr/local/bin/menu"
 
+# 2. bashrc Ubuntu HANYA untuk auto-start menu saat pertama kali login
+cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 if [[ $- == *i* ]] && [ -f "/root/nxc1.sh" ]; then
     bash "/root/nxc1.sh"
 fi
