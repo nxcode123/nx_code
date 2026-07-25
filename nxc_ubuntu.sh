@@ -7,56 +7,74 @@ set -e
 CYAN='\033[1;36m'
 GREEN='\033[1;32m'
 PURPLE='\033[1;35m'
+RED='\033[1;31m'
 NC='\033[0m'
 
 clear
 
-# Banner Logo Persis Referensi Gambar
-echo -e "${PURPLE}====================================================${NC}"
-echo -e "${CYAN} _  _ _  __ _   ___ ___  ___ ___  ___ ___ _ _ _ _   ${NC}"
-echo -e "${CYAN}| \\| | \\/ /| || __/ _ \\|   \\ __||_ _|_ _| \\ | | |  ${NC}"
-echo -e "${CYAN}| .\` |\\  / | || _| (_) | |) | _|   | | | ||  \\| |_|  ${NC}"
-echo -e "${CYAN}|_|\\_|/_/\\_\\|_||_| \\___/|___/___| |___|___|_| \\_(_)  ${NC}"
-echo -e "${PURPLE}                                            TERMINAL${NC}"
-echo -e "${PURPLE}====================================================${NC}"
-echo -e "SYSTEM STATUS: ${GREEN}ONLINE${NC} | THEME: ${PURPLE}CYBERPUNK v1.0.1${NC}"
-echo -e "${PURPLE}====================================================${NC}\n"
+# Banner Kotak NX-CODE
+echo -e "${PURPLE}┌──────────────────────────────────────────────┐${NC}"
+echo -e "${PURPLE}│${NC}  _  _ _  __ _  ___ ___  ___ ___               ${PURPLE}│${NC}"
+echo -e "${PURPLE}│${NC} | \\| | \\/ /| || __/ _ \\|   \\ __|              ${PURPLE}│${NC}"
+echo -e "${PURPLE}│${NC} | .\` |\\  / | || _| (_) | |) | _|               ${PURPLE}│${NC}"
+echo -e "${PURPLE}│${NC} |_|\\_|/_/\\_\\|_||_| \\___/|___/___|              ${PURPLE}│${NC}"
+echo -e "${PURPLE}├──────────────────────────────────────────────┤${NC}"
+echo -e "${PURPLE}│${NC} WORKSPACE TERMINAL                           ${PURPLE}│${NC}"
+echo -e "${PURPLE}├──────────────────────────────────────────────┤${NC}"
+echo -e "${PURPLE}│${NC} ST:${GREEN}ONLINE${NC}  THM:${PURPLE}CYBERPUNK${NC}  VER:${CYAN}v1.0.2-premium${NC} ${PURPLE}│${NC}"
+echo -e "${PURPLE}└──────────────────────────────────────────────┘${NC}\n"
 
-# Fungsi Task Runner dengan Indikator [DONE] (detik)
-run_task() {
-    local task_name="$1"
-    local cmd="$2"
-    local start_time=$(date +%s)
+# Fungsi Progress Bar Persis Referensi Gambar
+show_dual_progress() {
+    local title="$1"
+    echo -e "${CYAN}❯${NC} $title"
+    echo -e "${GREEN}●${NC} Updating repos"
     
-    echo -ne "${GREEN}[✔]${NC} ${task_name}..."
+    for i in {0..100..4}; do
+        local filled=$((i / 5))
+        local empty=$((20 - filled))
+        local bar=$(printf "█%.0s" $(seq 1 $filled))
+        local space=$(printf "░%.0s" $(seq 1 $empty))
+        
+        # Baris 1
+        printf "  ${PURPLE}└─${NC} [${CYAN}${bar}${space}${NC}]  %3d%%  | Get:683 http://\r" "$i"
+        sleep 0.03
+    done
+    echo -e ""
     
-    # Jalankan perintah secara silent di background
-    eval "$cmd" > /dev/null 2>&1
-    
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
-    
-    # Ratakan posisi [DONE] di sebelah kanan agar rapi
-    printf "\r[✔] %-33s ${GREEN}[DONE]${NC} (%ds)\n" "${task_name}..." "$duration"
+    for i in {0..100..4}; do
+        local filled=$((i / 5))
+        local empty=$((20 - filled))
+        local bar=$(printf "█%.0s" $(seq 1 $filled))
+        local space=$(printf "░%.0s" $(seq 1 $empty))
+        
+        # Baris 2
+        printf "  ${PURPLE}└─${NC} [${CYAN}${bar}${space}${NC}]  %3d%%  | Get:683 http://\r" "$i"
+        sleep 0.03
+    done
+    echo -e "\n"
 }
 
 # 1. Update & Upgrade Termux
-run_task "Updating Repositories" "pkg update -y"
-run_task "Upgrading System Core" "pkg upgrade -y"
+show_dual_progress "Inisialisasi Termux Core & Repositories..."
+pkg update -y && pkg upgrade -y > /dev/null 2>&1
 
-# 2. Deploying Hypervisor / proot-distro
-run_task "Deploying Hypervisor" "pkg install proot-distro -y"
+# 2. Install X11 Repository & Termux-X11
+show_dual_progress "Menyiapkan X11 Display Server..."
+pkg install x11-repo -y > /dev/null 2>&1
+pkg install termux-x11-nightly -y > /dev/null 2>&1
 
-# 3. Menambahkan X11 Repository & Display Server
-run_task "Adding X11 Repository" "pkg install x11-repo -y"
-run_task "Deploying X11 Display Server" "pkg install termux-x11-nightly -y"
+# 3. Install proot-distro
+show_dual_progress "Memasang Container Engine (proot-distro)..."
+if ! command -v proot-distro &> /dev/null; then
+    pkg install proot-distro -y > /dev/null 2>&1
+fi
 
-# 4. Menginstall Distro Ubuntu
-run_task "Checking Hypervisor Distros" "if [ ! -d '$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu' ]; then proot-distro install ubuntu; fi"
-
-# Status Akhir Sukses
-echo -e "${GREEN}[✔] Ubuntu Core OS      : Installed & Ready${NC}"
-echo -e "${GREEN}[✔] Termux-X11 Display Server: Installed & Ready${NC}\n"
+# 4. Install Ubuntu
+show_dual_progress "Mengunduh & Deploying Rootfs Ubuntu..."
+if [ ! -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+    proot-distro install ubuntu > /dev/null 2>&1
+fi
 
 # 5. Membuat dan Menanam Menu Panel Utama ke Ubuntu & Auto-Login Termux
 echo -e "${CYAN}❯${NC} Memasang Panel Menu Utama & Auto-Login..."
@@ -79,7 +97,7 @@ while true; do
     echo -e "${PURPLE}├──────────────────────────────────────────────┤${NC}"
     echo -e "${PURPLE}│${NC} WORKSPACE TERMINAL                           ${PURPLE}│${NC}"
     echo -e "${PURPLE}├──────────────────────────────────────────────┤${NC}"
-    echo -e "${PURPLE}│${NC} ST:${GREEN}ONLINE${NC}  THM:${PURPLE}CYBERPUNK${NC}  VER:${CYAN}v1.0.1-premium${NC} ${PURPLE}│${NC}"
+    echo -e "${PURPLE}│${NC} ST:${GREEN}ONLINE${NC}  THM:${PURPLE}CYBERPUNK${NC}  VER:${CYAN}v1.0.2-premium${NC} ${PURPLE}│${NC}"
     echo -e "${PURPLE}└──────────────────────────────────────────────┘${NC}"
     echo -e "${PURPLE}┌──────────────────────────────────────────────┐${NC}"
     echo -e "${PURPLE}│${NC}  ${PURPLE}[1]${NC} Masuk Ubuntu (CLI)                      ${PURPLE}│${NC}"
@@ -105,6 +123,12 @@ while true; do
             ;;
         2)
             echo -e "\n${CYAN}❯ Instalasi XFCE4 Environment (Satu Kali)...${NC}"
+            echo -e "${GREEN}●${NC} Updating repos"
+            for j in {0..100..10}; do
+                printf "  ${PURPLE}└─${NC} [████████████████████]  %3d%%  | Get:683 http://\r" "$j"
+                sleep 0.02
+            done
+            echo -e "\n"
             apt update -y > /dev/null 2>&1
             apt install xfce4 xfce4-goodies dbus-x11 x11-apps -y > /dev/null 2>&1
             
@@ -165,7 +189,7 @@ while true; do
             sleep 1
             ;;
         10)
-            echo -e "\n${CYAN}> Tema visual saat ini: Cyberpunk v1.0.1.${NC}"
+            echo -e "\n${CYAN}> Tema visual saat ini: Cyberpunk Purple.${NC}"
             sleep 1
             ;;
         0)
