@@ -148,15 +148,12 @@ if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
                     exec bash "\$LOCAL_FILE"
                 else
                     rm -f "\$TMP_FILE"
-                    echo -e "\033[1;32m[Done] Up to date\033[0m"
                 fi
             else
                 rm -f "\$TMP_FILE"
-                echo -e "\033[1;32m[Done] Up to date\033[0m"
             fi
         else
             download_and_validate "\$GITHUB_URL" "\$LOCAL_FILE" 1 3 2>/dev/null
-            echo -e "\033[1;32m[Done] Up to date\033[0m"
         fi
     fi
 
