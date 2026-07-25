@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# ==============================================================================
+# PROJECT: NXC - TERMUX-UBUNTU CONTROL MENU
+# DESCRIPTION: Interactive Control Panel for Proot Ubuntu Environment
+# VERSION: 1.0.0
+# ==============================================================================
+
+SCRIPT_VERSION="1.0.0"
+
 # Warna ANSI untuk estetika cyberpunk / futuristic
 CYAN='\033[1;36m'
 GREEN='\033[1;32m'
@@ -8,10 +16,12 @@ RED='\033[1;31m'
 PURPLE='\033[1;35m'
 NC='\033[0m' # No Color
 
+export DEBIAN_FRONTEND=noninteractive
+
 while true; do
     clear
     echo -e "${CYAN}==================================================${NC}"
-    echo -e "${PURPLE}       N X C - U B U N T U   C O N T R O L         ${NC}"
+    echo -e "${PURPLE}     N X C - U B U N T U   C O N T R O L [v${SCRIPT_VERSION}] ${NC}"
     echo -e "${CYAN}==================================================${NC}"
     echo -e "${YELLOW} [1]${NC} System Status & Resource Info"
     echo -e "${YELLOW} [2]${NC} Update & Upgrade Ubuntu Packages"
