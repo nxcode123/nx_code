@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.2.0
+# VERSION: 1.2.1
 # ==============================================================================
 
-SCRIPT_VERSION="1.2.0"
+SCRIPT_VERSION="1.2.1"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -37,7 +37,7 @@ fi
 show_banner() {
     clear
     printf "\033[?25l"
-    echo -e "${NEON_GREEN}NXC - TERMUX-UBUNTU // PRO-EDITION [v${SCRIPT_VERSION}]${NC}"
+    echo -e "${NEON_GREEN}[NXC]  TERMUX-UBUNTU  [v${SCRIPT_VERSION}]${NC}"
     echo -e "${DARK_GRAY}----------------------------------------${NC}\n"
 }
 
@@ -265,6 +265,6 @@ EOF_UBUNTU_BASHRC
 sleep 1 2>/dev/null
 printf "\033[?25h"
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.2.0) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Profil .bashrc Termux & Ubuntu berhasil diregenerasi ulang.${NC}"
-echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif dan sinkron.${NC}\n"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.2.1) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Banner diperbarui menjadi format [NXC]  TERMUX-UBUNTU  [v1.2.1].${NC}"
+echo -e "${NEON_YELLOW} [2] Profil .bashrc Termux & Ubuntu berhasil diregenerasi ulang.${NC}\n"
