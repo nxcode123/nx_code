@@ -24,7 +24,7 @@ trap 'printf "\033[?25h"; echo -e "${NC}"; exit' INT TERM EXIT
 
 show_banner() {
     clear
-    printf "\033[?25l" # Sembunyikan kursor (Pengganti tput)
+    printf "\033[?25l" # Sembunyikan kursor
     echo -e "${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${NEON_CYAN}║ ${NEON_PINK}    N X C - U B U N T U   N E U R A L   L I N K    ${NEON_CYAN}║${NC}"
     echo -e "${NEON_CYAN}╠══════════════════════════════════════════════════╣${NC}"
@@ -118,10 +118,12 @@ echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan (Hushlogin)...${NC}"
 touch "$HOME/.hushlogin"
 sleep 0.5 2>/dev/null
 
+# URUTAN DIUBAH: Meminta akses storage lebih awal
+run_with_spinner "Membuka Neural Storage (Akses Penyimpanan)" "termux-setup-storage"
+
+# Lanjut ke proses update & upgrade
 run_with_spinner "Menginisialisasi pembaruan Kernel Termux" "pkg update -y"
 run_with_progress_bar "Mengoptimasi sistem inti matrix" 15 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
-
-run_with_spinner "Membuka Neural Storage (Akses Penyimpanan)" "termux-setup-storage"
 
 if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
     run_with_progress_bar "Mengunduh modul Proot & Curl" 10 "pkg install proot-distro curl -y"
@@ -136,7 +138,6 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# PERBAIKAN: Menggunakan backslash (escaped quotes) agar variabel $UBUNTU_ROOT terbaca dengan benar
 run_with_spinner "Menginjeksi nxc1.sh dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
@@ -160,7 +161,6 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
 
     echo -e "${CYAN}[*] Memeriksa pembaruan sistem (nxc_ubuntu.sh)...${NC}"
 
-    # Cek GitHub dengan batas waktu max 3 detik agar tidak memblokir saat offline
     if curl -s -L --max-time 3 "$GITHUB_URL" -o "$TMP_FILE"; then
         if [ -f "$LOCAL_FILE" ]; then
             if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
@@ -207,7 +207,7 @@ fi
 EOF_UBUNTU_BASHRC
 
 sleep 1 2>/dev/null
-printf "\033[?25h" # Kembalikan kursor (Pengganti tput)
+printf "\033[?25h" # Kembalikan kursor
 
 echo -e "\n${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${NEON_CYAN}║ ${NEON_GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NEON_CYAN}║${NC}"
