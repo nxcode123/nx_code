@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.1.5
+# VERSION: 1.1.6
 # ==============================================================================
 
-SCRIPT_VERSION="1.1.5"
+SCRIPT_VERSION="1.1.6"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -141,14 +141,14 @@ echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan default (Hushlogin).
 touch "$HOME/.hushlogin"
 sleep 0.5 2>/dev/null
 
-# 2. Storage Setup dengan Logika Smart Skip (Jika folder storage sudah ada, lewati)
+# 2. Storage Setup dengan Logika Smart Skip
 if [ ! -d "$HOME/storage" ]; then
     run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Neural Storage (Penyimpanan HP) ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 3. Membersihkan Apt Locks, Status Macet, dan Cache Lama (Self-Healing State)
+# 3. Membersihkan Apt Locks, Status Macet, dan Cache Lama
 echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan memperbaiki status sistem...${NC}"
 rm -f "$PREFIX/var/lib/dpkg/lock*" "$PREFIX/var/cache/apt/archives/lock*" > /dev/null 2>&1
 dpkg --configure -a > /dev/null 2>&1
@@ -158,7 +158,7 @@ apt-get clean > /dev/null 2>&1
 run_with_spinner "Menyinkronkan repositori global Termux" "pkg update -y || apt-get update -y"
 run_with_progress_bar "Mengoptimalkan dan mengupgrade kernel inti" 20 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
 
-# 5. Cek & Install Modul Pendukung (Proot-distro & Curl) dengan Sinkronisasi Ulang (Anti-404)
+# 5. Cek & Install Modul Pendukung (Proot-distro & Curl)
 if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
     run_with_spinner "Menyinkronkan ulang database paket (Anti-404)" "apt-get update -y"
     run_with_progress_bar "Mengunduh modul pendukung Matrix (Proot & Curl)" 15 "pkg install proot-distro curl -y"
@@ -178,7 +178,7 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 7. Fungsi Unduh dengan Mekanisme Retry Otomatis (Anti-Error 23/Network Glitch)
+# 7. Fungsi Unduh dengan Mekanisme Retry Otomatis
 download_menu_script() {
     local url="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh"
     local target="$UBUNTU_ROOT/root/nxc1.sh"
@@ -253,22 +253,22 @@ fi
 EOF_BASHRC
 
 # ===================================================================
-# 9. BASHRC UBUNTU (Alias Menu & Auto-run Hook)
+# 9. BASHRC UBUNTU (Alias Menu & Auto-run Hook dengan Path Absolut)
 # ===================================================================
 cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 # Perintah panggilan cepat (Alias)
-alias menu='bash $HOME/nxc1.sh'
+alias menu='bash /root/nxc1.sh'
 
 # Skrip berjalan otomatis saat pertama kali masuk
-if [ -f "$HOME/nxc1.sh" ]; then
-    bash "$HOME/nxc1.sh"
+if [ -f "/root/nxc1.sh" ]; then
+    bash "/root/nxc1.sh"
 fi
 EOF_UBUNTU_BASHRC
 
 sleep 1 2>/dev/null
 printf "\033[?25h" # Kembalikan kursor
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.5) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Smart Skip Storage: Melewati setup storage jika sudah ada.${NC}"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.6) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Perbaikan path alias 'menu' di .bashrc Ubuntu.${NC}"
 echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif.${NC}"
 echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
