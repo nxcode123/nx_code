@@ -8,7 +8,7 @@
 # CHANGELOG v1.3.2: 
 # - Fix Absolute Path: Menggunakan path absolut penuh untuk mencegah variabel gagal diekspansi
 # - Mengoptimalkan fungsi download agar langsung dieksekusi tanpa eval yang rentan error
-# ==============================================================================
+# =============================================================================
 
 SCRIPT_VERSION="1.3.2"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
@@ -18,21 +18,14 @@ export DEBIAN_FRONTEND=noninteractive
 export APT_LISTCHANGES_FRONTEND=none
 LOG_FILE="$HOME/nxc_setup.log"
 
-# Inisialisasi file log baru
 > "$LOG_FILE"
-
-# Trap pengaman untuk mengembalikan kursor jika skrip dihentikan paksa (Ctrl+C)
 trap 'printf "\033[?25h"; echo -e "\033[0m"; exit' INT TERM EXIT
 
-# Guard: Memastikan skrip dijalankan di lingkungan Termux
 if [ ! -d "/data/data/com.termux" ]; then
     echo "[!] Error: Skrip ini dirancang khusus untuk dijalankan di lingkungan Termux!"
     exit 1
 fi
 
-# ------------------------------------------------------------------
-# Pastikan nxc_lib.sh tersedia lalu source
-# ------------------------------------------------------------------
 fetch_lib() {
     if command -v curl &> /dev/null; then
         curl -sf -L --max-time 10 "$NXC_LIB_URL" -o "$NXC_LIB_LOCAL.tmp"
@@ -44,99 +37,16 @@ fetch_lib() {
 }
 
 if [ ! -f "$NXC_LIB_LOCAL" ]; then
-    echo "[*] Mengunduh nxc_lib.sh (library UI bersama)..."
     if fetch_lib && [ -s "$NXC_LIB_LOCAL.tmp" ] && bash -n "$NXC_LIB_LOCAL.tmp" 2>/dev/null; then
         mv "$NXC_LIB_LOCAL.tmp" "$NXC_LIB_LOCAL"
     else
         rm -f "$NXC_LIB_LOCAL.tmp"
-        echo "[!] Gagal mengunduh nxc_lib.sh. Cek koneksi internet lalu jalankan ulang skrip."
         exit 1
     fi
 fi
 
-# shellcheck source=/dev/null
 source "$NXC_LIB_LOCAL"
 
-show_banner "TERMUX-UBUNTU" "$SCRIPT_VERSION"
-
-echo -e "${DARK_GRAY}[INIT] Menyiapkan lingkungan awal Termux...${NC}"
-sleep 1 2>/dev/null
-
-# 1. Hushlogin setup
-echo -e "${CYBER_BLUE}[*]${WHITE} Menyembunyikan teks sambutan awal (hushlogin)...${NC}"
-touch "$HOME/.hushlogin"
-sleep 0.5 2>/dev/null
-
-# 2. Storage Setup dengan Logika Smart Skip
-if [ ! -d "$HOME/storage" ]; then
-    run_with_spinner "Meminta izin akses penyimpanan HP" "termux-setup-storage"
-else
-    echo -e "${CYBER_BLUE}[*]${WHITE} Akses penyimpanan HP ${TOXIC_GREEN}[✔ TERSEDIA]${NC}"
-fi
-
-# 3. Membersihkan Apt Locks, Status Macet, dan Cache Lama
-echo -e "${CYBER_BLUE}[*]${WHITE} Membersihkan cache dan memperbaiki error paket dpkg...${NC}"
-rm -f "$PREFIX/var/lib/dpkg/lock*" "$PREFIX/var/cache/apt/archives/lock*" > /dev/null 2>&1
-dpkg --configure -a > /dev/null 2>&1
-apt-get clean > /dev/null 2>&1
-
-# 4. Update & Upgrade Termux dengan Fallback Aman
-run_with_spinner "Memperbarui repositori paket Termux" "pkg update -y || apt-get update -y"
-run_with_progress_bar "Meningkatkan paket dasar Termux" 20 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
-
-# 5. Cek & Install Modul Pendukung (Proot-distro & Curl)
-if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
-    run_with_spinner "Menyegarkan database paket terbaru" "apt-get update -y"
-    run_with_progress_bar "Menginstal modul pendukung (Proot & Curl)" 15 "pkg install proot-distro curl -y"
-else
-    echo -e "${CYBER_BLUE}[*]${WHITE} Modul Proot & Curl ${TOXIC_GREEN}[✔ TERSEDIA]${NC}"
-fi
-
-# 6. Install Ubuntu Rootfs via Proot-Distro (Smart Skip & Auto-Repair)
-UBUNTU_ROOT="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu"
-if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
-    if [ -d "$UBUNTU_ROOT" ] || proot-distro list | grep -q "ubuntu.*installed"; then
-        echo -e "${DARK_GRAY}[*] Membersihkan file instalasi Ubuntu yang rusak...${NC}"
-        proot-distro remove ubuntu > /dev/null 2>&1
-        chmod -R 777 "$UBUNTU_ROOT" 2>/dev/null
-        rm -rf "$UBUNTU_ROOT" 2>/dev/null
-    fi
-    run_with_progress_bar "Menginstal sistem operasi Ubuntu" 40 "proot-distro install ubuntu"
-else
-    echo -e "${CYBER_BLUE}[*]${WHITE} Sistem operasi Ubuntu ${TOXIC_GREEN}[✔ TERSEDIA]${NC}"
-fi
-
-# 7. Otomatisasi Total Menggunakan Path Absolut
-echo -e "${CYBER_BLUE}[*]${WHITE} Menyiapkan file sistem & kontrol menu di Ubuntu...${NC}"
-mkdir -p "$UBUNTU_ROOT/root"
-mkdir -p "$UBUNTU_ROOT/usr/local/bin"
-
-# Unduh nxc1.sh langsung menggunakan path absolut yang dijamin aman
-if curl -sL --retry 3 "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/root/nxc1.sh"; then
-    chmod +x "$UBUNTU_ROOT/root/nxc1.sh"
-    cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
-
-    # Membuat perintah global 'menu' di dalam direktori sistem Ubuntu
-    cat << 'EOF_MENU' > "$UBUNTU_ROOT/usr/local/bin/menu"
-#!/bin/bash
-if [ -f "/root/nxc1.sh" ]; then
-    bash "/root/nxc1.sh"
-else
-    echo -e "\033[1;31m[!] Error: File /root/nxc1.sh tidak ditemukan.\033[0m"
-fi
-EOF_MENU
-    chmod +x "$UBUNTU_ROOT/usr/local/bin/menu"
-    echo -e "${CYBER_BLUE}[*]${WHITE} Konfigurasi menu Ubuntu ${TOXIC_GREEN}[✔ BERHASIL]${NC}"
-else
-    echo -e "${CORRUPT_RED}[!] Error: Gagal mengunduh nxc1.sh dari GitHub!${NC}"
-    exit 1
-fi
-
-echo -e "${CYBER_BLUE}[*]${WHITE} Menerapkan konfigurasi otomatis (.bashrc)...${NC}"
-
-# ===================================================================
-# 8. BASHRC TERMUX (Developer Mode: Check Every Time & Silent)
-# ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
     LOCAL_FILE="$HOME/nxc_ubuntu.sh"
@@ -177,17 +87,3 @@ if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
     exec proot-distro login ubuntu
 fi
 EOF_BASHRC
-
-# ===================================================================
-# 9. BASHRC UBUNTU AUTO-START
-# ===================================================================
-cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
-if [[ $- == *i* ]] && [ -f "/root/nxc1.sh" ]; then
-    bash "/root/nxc1.sh"
-fi
-EOF_UBUNTU_BASHRC
-
-sleep 1 2>/dev/null
-printf "\033[?25h"
-
-echo -e "\n${TOXIC_GREEN}[✔] SETUP TERMUX-UBUNTU SELESAI!${NC}"
