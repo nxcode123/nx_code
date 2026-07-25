@@ -1,42 +1,37 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# NXC SHARED UI LIBRARY (nxc_lib.sh)
-# Dipakai bersama oleh nxc_ubuntu.sh (sisi Termux) dan nxc1.sh (sisi Ubuntu),
-# supaya fungsi UI (spinner, progress bar, banner, logger, warna) tidak
-# terduplikasi di dua tempat.
-#
-# CARA PAKAI (di script pemanggil):
-#   LOG_FILE="$HOME/namafile.log"      # wajib di-set SEBELUM source
-#   source "/path/ke/nxc_lib.sh"
-#   > "$LOG_FILE"                       # inisialisasi log (dilakukan pemanggil)
-#   show_banner "TERMUX-UBUNTU" "1.2.3" # judul & versi custom per script
-#
-# File ini HANYA berisi definisi (warna, fungsi). Tidak ada side-effect saat
-# di-source (tidak jalankan apa pun sendiri), supaya aman dipakai di kedua sisi.
+# Source file : nxc_lib.sh
+# THEME       : SYNTHWAVE / CYBER-STEALTH
+# DESCRIPTION : NXC SHARED UI LIBRARY (nxc_lib.sh)
 # ==============================================================================
 
-# ANSI Cyberpunk Color Palette
-NEON_GREEN='\033[38;5;46m'
-NEON_CYAN='\033[38;5;51m'
-NEON_PINK='\033[38;5;198m'
-NEON_YELLOW='\033[38;5;226m'
-DARK_GRAY='\033[38;5;238m'
+# 🎨 Palette Warna Synthwave & Cyber-Stealth
+CYBER_BLUE='\033[38;5;39m'
+NEON_PURPLE='\033[38;5;135m'
+NEON_MAGENTA='\033[38;5;198m'
+TOXIC_GREEN='\033[38;5;46m'
+CORRUPT_RED='\033[38;5;196m'
+GOLDEN_YELLOW='\033[38;5;220m'
+DARK_GRAY='\033[38;5;237m'
 WHITE='\033[1;37m'
-RED='\033[1;31m'
 NC='\033[0m'
 
+# ==============================================================================
 # show_banner <title> <version>
+# ==============================================================================
 show_banner() {
     local title="${1:-NXC}"
     local version="${2:-0.0.0}"
     clear
     printf "\033[?25l"
-    echo -e "${NEON_GREEN}[NXC]  ${title}  [v${version}]${NC}"
-    echo -e "${DARK_GRAY}----------------------------------------${NC}\n"
+    echo -e "${CYBER_BLUE}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYBER_BLUE}║  ${NEON_PURPLE}✦ ${WHITE}${title} ${CYBER_BLUE}[${GOLDEN_YELLOW}v${version}${CYBER_BLUE}]${NC}"
+    echo -e "${CYBER_BLUE}╚════════════════════════════════════════════════╝${NC}\n"
 }
 
+# ==============================================================================
 # log_msg <pesan>
-# Membutuhkan variabel LOG_FILE sudah di-set oleh script pemanggil.
+# ==============================================================================
 log_msg() {
     if [ -z "$LOG_FILE" ]; then
         return 0
@@ -44,7 +39,9 @@ log_msg() {
     echo "[$(date +'%T')] $1" >> "$LOG_FILE"
 }
 
+# ==============================================================================
 # run_with_spinner <label> <command_string>
+# ==============================================================================
 run_with_spinner() {
     local text="$1"
     local cmd="$2"
@@ -53,42 +50,46 @@ run_with_spinner() {
     eval "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1 &
     local pid=$!
 
-    local spin='⣾⣽⣻⢿⡿⣟⣯⣷'
+    # Spinner modern (Braille smooth pulse)
+    local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local i=0
 
-    printf "${NEON_CYAN}[*] ${WHITE}%s ${NC}" "$text"
+    # Hide cursor
+    printf "\033[?25l"
 
     while kill -0 "$pid" 2>/dev/null; do
-        printf "\b${NEON_PINK}%s${NC}" "${spin:i:1}"
-        i=$(( (i+1) % 8 ))
+        printf "\r${CYBER_BLUE}[${NEON_PURPLE}%s${CYBER_BLUE}] ${WHITE}%s ${NC}" "${spin:i:1}" "$text"
+        i=$(( (i+1) % 10 ))
         sleep 0.1 2>/dev/null || read -t 0.1
     done
 
     wait "$pid"
     local status=$?
     if [ $status -eq 0 ]; then
-        printf "\b${NEON_GREEN}[✔ SYNCED]${NC}\n"
+        printf "\r${CYBER_BLUE}[${TOXIC_GREEN}✔${CYBER_BLUE}] ${WHITE}%s ${TOXIC_GREEN}[SYNCED]${NC}\n" "$text"
         log_msg "SUCCESS: $text"
     else
-        printf "\b${RED}[✖ FAILED] - Cek log${NC}\n"
+        printf "\r${CYBER_BLUE}[${CORRUPT_RED}✘${CYBER_BLUE}] ${WHITE}%s ${CORRUPT_RED}[FAILED]${NC}\n" "$text"
         log_msg "ERROR: $text (Exit code: $status)"
         printf "\033[?25h"
         if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
-            echo -e "\n${RED}[!] Detail error sistem dari log:${NC}"
+            echo -e "\n${CORRUPT_RED}▲ DETEKSI ANOMALI: Menarik data dari log...${NC}"
             tail -n 10 "$LOG_FILE"
         fi
         return $status
     fi
 }
 
+# ==============================================================================
 # run_with_progress_bar <label> <estimasi_detik> <command_string>
+# ==============================================================================
 run_with_progress_bar() {
     local text="$1"
     local est_time="$2"
     local cmd="$3"
 
     log_msg "START (Progress): $text"
-    echo -e "${NEON_CYAN}[*] ${WHITE}${text}${NC}"
+    echo -e "${CYBER_BLUE}[${NEON_MAGENTA}⚡${CYBER_BLUE}] ${WHITE}${text}${NC}"
 
     eval "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1 &
     local pid=$!
@@ -104,11 +105,12 @@ run_with_progress_bar() {
         local filled=$(( (percent * width) / 100 ))
         local empty=$(( width - filled ))
 
+        # Bar style retro-futuristic
         local bar=""
-        for ((i=0; i<filled; i++)); do bar+="█"; done
-        for ((i=0; i<empty; i++)); do bar+="░"; done
+        for ((i=0; i<filled; i++)); do bar+="▓"; done
+        for ((i=0; i<empty; i++)); do bar+="▒"; done
 
-        printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${NEON_GREEN}%-${width}s${NEON_PINK}] ${NEON_YELLOW}%3d%% ${NC}" "$bar" "$percent"
+        printf "\r${DARK_GRAY} ↳ ${CYBER_BLUE}[${NEON_PURPLE}%-${width}s${CYBER_BLUE}] ${GOLDEN_YELLOW}%3d%% ${NC}" "$bar" "$percent"
 
         sleep $interval 2>/dev/null || read -t 0.2
         elapsed=$((elapsed + 1))
@@ -119,15 +121,15 @@ run_with_progress_bar() {
 
     if [ $status -eq 0 ]; then
         local bar=""
-        for ((i=0; i<width; i++)); do bar+="█"; done
-        printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${NEON_GREEN}%-${width}s${NEON_PINK}] ${NEON_GREEN}100%% [✔ SECURED]${NC}\n" "$bar"
+        for ((i=0; i<width; i++)); do bar+="▓"; done
+        printf "\r${DARK_GRAY} ↳ ${CYBER_BLUE}[${TOXIC_GREEN}%-${width}s${CYBER_BLUE}] ${TOXIC_GREEN}100%% [SECURED]${NC}\n" "$bar"
         log_msg "SUCCESS (Progress): $text"
     else
         local bar=""
-        for ((i=0; i<width; i++)); do bar+="█"; done
-        printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${RED}%-${width}s${NEON_PINK}] ${RED}ERR%% [✖ FAILED] ${NC}\n" "$bar"
+        for ((i=0; i<width; i++)); do bar+="▓"; done
+        printf "\r${DARK_GRAY} ↳ ${CYBER_BLUE}[${CORRUPT_RED}%-${width}s${CYBER_BLUE}] ${CORRUPT_RED}ERR%% [FAILED] ${NC}\n" "$bar"
         log_msg "ERROR (Progress): $text (Exit code: $status)"
-        echo -e "${RED}[!] FATAL ERROR: Silakan cek log untuk detailnya.${NC}"
+        echo -e "${CORRUPT_RED}[!] KESALAHAN FATAL: Sistem gagal mengeksekusi kernel. Cek log.${NC}"
         if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
             tail -n 10 "$LOG_FILE"
         fi
@@ -135,9 +137,9 @@ run_with_progress_bar() {
     fi
 }
 
+# ==============================================================================
 # download_and_validate <url> <target_path> [max_attempts=3] [timeout=10]
-# Helper umum: download dengan retry, validasi bash -n sebelum dipakai.
-# Dipakai baik untuk update nxc_ubuntu.sh, nxc1.sh, maupun nxc_lib.sh sendiri.
+# ==============================================================================
 download_and_validate() {
     local url="$1"
     local target="$2"
