@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.6.0
+# VERSION: 1.1.4
 # ==============================================================================
 
-SCRIPT_VERSION="1.6.0"
+SCRIPT_VERSION="1.1.4"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -154,8 +154,9 @@ apt-get clean > /dev/null 2>&1
 run_with_spinner "Menyinkronkan repositori global Termux" "pkg update -y || apt-get update -y"
 run_with_progress_bar "Mengoptimalkan dan mengupgrade kernel inti" 20 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
 
-# 5. Cek & Install Modul Pendukung (Proot-distro & Curl)
+# 5. Cek & Install Modul Pendukung (Proot-distro & Curl) dengan Sinkronisasi Ulang (Anti-404)
 if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
+    run_with_spinner "Menyinkronkan ulang database paket (Anti-404)" "apt-get update -y"
     run_with_progress_bar "Mengunduh modul pendukung Matrix (Proot & Curl)" 15 "pkg install proot-distro curl -y"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Modul Proot & Curl ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
@@ -263,7 +264,7 @@ EOF_UBUNTU_BASHRC
 sleep 1 2>/dev/null
 printf "\033[?25h" # Kembalikan kursor
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.6.0) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Self-Healing: Pembersihan otomatis rootfs korup aktif.${NC}"
-echo -e "${NEON_YELLOW} [2] Anti-Error 23: Fitur retry download otomatis aktif.${NC}"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.4) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Fix Error 404: Sinkronisasi paket tambahan sebelum instalasi proot.${NC}"
+echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif.${NC}"
 echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
