@@ -6,12 +6,8 @@
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
 # VERSION: 1.2.3
 # CHANGELOG v1.2.3:
-#   - Fungsi UI (show_banner, log_msg, run_with_spinner, run_with_progress_bar,
-#     download_and_validate) dipindah ke file bersama nxc_lib.sh, di-source
-#     dari sini, bukan didefinisikan ulang. File yang sama juga disalin ke
-#     dalam rootfs Ubuntu supaya nxc1.sh bisa source lib yang identik
-#     (tidak ada lagi duplikasi kode UI di dua script).
-#   - Auto-repair untuk mengatasi error "container ubuntu already exists".
+#   - Fungsi UI dipindah ke nxc_lib.sh bersama.
+#   - Penambahan jeda (sleep) agar teks pemeriksaan pembaruan sempat terlihat.
 # ==============================================================================
 
 SCRIPT_VERSION="1.2.3"
@@ -35,9 +31,7 @@ if [ ! -d "/data/data/com.termux" ]; then
 fi
 
 # ------------------------------------------------------------------
-# Pastikan nxc_lib.sh tersedia lalu source. Kalau curl belum ada sama
-# sekali (instalasi paling pertama), pakai wget sebagai fallback karena
-# curl sendiri baru diinstal di step 5 di bawah.
+# Pastikan nxc_lib.sh tersedia lalu source
 # ------------------------------------------------------------------
 fetch_lib() {
     if command -v curl &> /dev/null; then
@@ -101,7 +95,6 @@ fi
 # 6. Install Ubuntu Rootfs via Proot-Distro dengan Smart Skip & Auto-Repair
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
-    # Jika folder ada tapi file os-release tidak ada (instalasi terputus), bersihkan dulu
     if [ -d "$UBUNTU_ROOT" ]; then
         rm -rf "$UBUNTU_ROOT"
     fi
@@ -110,9 +103,7 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 7. Unduh nxc1.sh (menu Ubuntu) + salin nxc_lib.sh ke dalam rootfs Ubuntu,
-#    supaya nxc1.sh bisa `source /root/nxc_lib.sh` juga (lib yang sama,
-#    bukan duplikat kode).
+# 7. Unduh nxc1.sh (menu Ubuntu) + salin nxc_lib.sh ke dalam rootfs Ubuntu
 mkdir -p "$UBUNTU_ROOT/root"
 run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" \
     "download_and_validate 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' '$UBUNTU_ROOT/root/nxc1.sh'"
@@ -121,11 +112,9 @@ cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
 echo -e "${NEON_CYAN}[*] ${WHITE}Meregenerasi ulang profil konfigurasi sistem (.bashrc)...${NC}"
 
 # ===================================================================
-# 8. BASHRC TERMUX (Jembatan Auto-Login & Refresh Otomatis Profile)
+# 8. BASHRC TERMUX (Ditambahkan sleep agar teks sempat terbaca)
 # ===================================================================
 cat << EOF_BASHRC > "$HOME/.bashrc"
-# Escape hatch: jalankan \`TERMUX_CATCH=true bash\` untuk tetap di shell
-# Termux biasa tanpa auto masuk ke Ubuntu.
 if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
     export DEBIAN_FRONTEND=noninteractive
 
@@ -153,9 +142,11 @@ if [[ \$- == *i* ]] && [ "\$TERMUX_CATCH" != "true" ]; then
                 fi
             else
                 rm -f "\$TMP_FILE"
+                sleep 1
             fi
         else
             download_and_validate "\$GITHUB_URL" "\$LOCAL_FILE" 1 3 2>/dev/null
+            sleep 1
         fi
     fi
 
@@ -164,8 +155,7 @@ fi
 EOF_BASHRC
 
 # ===================================================================
-# 9. BASHRC UBUNTU (Regenerasi Total Alias & Hook Menu Ubuntu)
-#    Menu hanya auto-run di shell interaktif.
+# 9. BASHRC UBUNTU
 # ===================================================================
 cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 alias menu='bash /root/nxc1.sh'
@@ -179,6 +169,3 @@ sleep 1 2>/dev/null
 printf "\033[?25h"
 
 echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v${SCRIPT_VERSION}) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Fungsi UI kini dari nxc_lib.sh bersama (tidak ada duplikasi kode).${NC}"
-echo -e "${NEON_YELLOW} [2] nxc_lib.sh juga disalin ke rootfs Ubuntu untuk dipakai nxc1.sh.${NC}"
-echo -e "${NEON_YELLOW} [3] Semua fix v1.2.2 (curl -f, validasi syntax, escape hatch, guard interaktif) tetap ada.${NC}\n"
