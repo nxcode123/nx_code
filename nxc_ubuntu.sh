@@ -1,8 +1,12 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# ==========================================
-# CYBERPUNK COLOR PALETTE
-# ==========================================
+# ==============================================================================
+# PROJECT: NXC - UBUNTU NEURAL LINK (PRODUCTION GRADE)
+# AUTHOR: Professional DevOps / Cyberpunk Architecture
+# DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
+# ==============================================================================
+
+# ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
 NEON_CYAN='\033[38;5;51m'
 NEON_PINK='\033[38;5;198m'
@@ -10,32 +14,43 @@ NEON_YELLOW='\033[38;5;226m'
 DARK_GRAY='\033[38;5;238m'
 WHITE='\033[1;37m'
 RED='\033[1;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTCHANGES_FRONTEND=none
-LOG_FILE="nxc_setup.log"
+LOG_FILE="$HOME/nxc_setup.log"
 
-# Kosongkan log lama jika ada
+# Inisialisasi file log baru
 > "$LOG_FILE"
 
-# Mengembalikan kursor jika skrip dihentikan paksa (Ctrl+C) menggunakan ANSI Code
+# Trap pengaman untuk mengembalikan kursor jika skrip dihentikan paksa (Ctrl+C)
 trap 'printf "\033[?25h"; echo -e "${NC}"; exit' INT TERM EXIT
+
+# Guard: Memastikan skrip dijalankan di lingkungan Termux
+if [ ! -d "/data/data/com.termux" ]; then
+    echo -e "${RED}[!] Error: Skrip ini dirancang khusus untuk dijalankan di lingkungan Termux!${NC}"
+    exit 1
+fi
 
 show_banner() {
     clear
-    printf "\033[?25l" # Sembunyikan kursor
+    printf "\033[?25l"
     echo -e "${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${NEON_CYAN}║ ${NEON_PINK}    N X C - U B U N T U   N E U R A L   L I N K    ${NEON_CYAN}║${NC}"
     echo -e "${NEON_CYAN}╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${NEON_CYAN}║ ${NEON_GREEN}[SYSTEM MATRIX: ONLINE] ${DARK_GRAY}| ${NEON_YELLOW}[PROTOCOL: AUTOMATED] ${NEON_CYAN}║${NC}"
+    echo -e "${NEON_CYAN}║ ${NEON_GREEN}[SYSTEM MATRIX: ONLINE] ${DARK_GRAY}| ${NEON_YELLOW}[BUILD: PRO-EDITION] ${NEON_CYAN}║${NC}"
     echo -e "${NEON_CYAN}╚══════════════════════════════════════════════════╝${NC}\n"
+}
+
+log_msg() {
+    echo "[$(date +'%T')] $1" >> "$LOG_FILE"
 }
 
 run_with_spinner() {
     local text="$1"
     local cmd="$2"
 
+    log_msg "START: $text"
     eval "$cmd" >> "$LOG_FILE" 2>&1 &
     local pid=$!
 
@@ -54,9 +69,13 @@ run_with_spinner() {
     local status=$?
     if [ $status -eq 0 ]; then
         printf "\b${NEON_GREEN}[✔ SYNCED]${NC}\n"
+        log_msg "SUCCESS: $text"
     else
         printf "\b${RED}[✖ FAILED] - Cek nxc_setup.log${NC}\n"
-        printf "\033[?25h" # Kembalikan kursor
+        log_msg "ERROR: $text (Exit code: $status)"
+        printf "\033[?25h"
+        echo -e "\n${RED}[!] Detail error sistem dari log:${NC}"
+        tail -n 10 "$LOG_FILE"
         exit 1
     fi
 }
@@ -66,6 +85,7 @@ run_with_progress_bar() {
     local est_time="$2"
     local cmd="$3"
 
+    log_msg "START (Progress): $text"
     echo -e "${NEON_CYAN}[*] ${WHITE}${text}${NC}"
 
     eval "$cmd" >> "$LOG_FILE" 2>&1 &
@@ -83,8 +103,8 @@ run_with_progress_bar() {
         local empty=$(( width - filled ))
 
         local bar=""
-        for ((i=0; i<filled; i++)); do bar+="█"; echo -n ""; done
-        for ((i=0; i<empty; i++)); do bar+="░"; echo -n ""; done
+        for ((i=0; i<filled; i++)); do bar+="█"; done
+        for ((i=0; i<empty; i++)); do bar+="░"; done
 
         printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${NEON_GREEN}%-${width}s${NEON_PINK}] ${NEON_YELLOW}%3d%% ${NC}" "$bar" "$percent"
 
@@ -99,57 +119,69 @@ run_with_progress_bar() {
         local bar=""
         for ((i=0; i<width; i++)); do bar+="█"; done
         printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${NEON_GREEN}%-${width}s${NEON_PINK}] ${NEON_GREEN}100%% [✔ SECURED]${NC}\n" "$bar"
+        log_msg "SUCCESS (Progress): $text"
     else
         local bar=""
         for ((i=0; i<width; i++)); do bar+="█"; done
         printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${RED}%-${width}s${NEON_PINK}] ${RED}ERR%% [✖ FAILED] ${NC}\n" "$bar"
+        log_msg "ERROR (Progress): $text (Exit code: $status)"
         echo -e "${RED}[!] FATAL ERROR: Silakan cek file nxc_setup.log untuk detailnya.${NC}"
-        printf "\033[?25h" # Kembalikan kursor
+        tail -n 10 "$LOG_FILE"
+        printf "\033[?25h"
         exit 1
     fi
 }
 
 show_banner
 
-echo -e "${DARK_GRAY}[INIT] Menghubungkan ke server satelit...${NC}"
+echo -e "${DARK_GRAY}[INIT] Memuat protokol keamanan sistem...${NC}"
 sleep 1 2>/dev/null
 
-echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan (Hushlogin)...${NC}"
+# 1. Hushlogin setup
+echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan default (Hushlogin)...${NC}"
 touch "$HOME/.hushlogin"
 sleep 0.5 2>/dev/null
 
-# URUTAN DIUBAH: Meminta akses storage lebih awal
-run_with_spinner "Membuka Neural Storage (Akses Penyimpanan)" "termux-setup-storage"
+# 2. Storage Setup Diletakkan di Awal (Sesuai permintaan Anda)
+run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
 
-# Lanjut ke proses update & upgrade
-run_with_spinner "Menginisialisasi pembaruan Kernel Termux" "pkg update -y"
-run_with_progress_bar "Mengoptimasi sistem inti matrix" 15 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
+# 3. Membersihkan Apt Locks dan Cache Lama (Solusi Mirror Sync Error)
+echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan kunci repositori sistem...${NC}"
+rm -f "$PREFIX/var/lib/dpkg/lock*" "$PREFIX/var/cache/apt/archives/lock*" > /dev/null 2>&1
+apt-get clean > /dev/null 2>&1
 
+# 4. Update & Upgrade Termux dengan Fallback Aman
+run_with_spinner "Menyinkronkan repositori global Termux" "pkg update -y || apt-get update -y"
+run_with_progress_bar "Mengoptimalkan dan mengupgrade kernel inti" 20 "apt-get upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
+
+# 5. Cek & Install Modul Pendukung (Proot-distro & Curl)
 if ! command -v proot-distro &> /dev/null || ! command -v curl &> /dev/null; then
-    run_with_progress_bar "Mengunduh modul Proot & Curl" 10 "pkg install proot-distro curl -y"
+    run_with_progress_bar "Mengunduh modul pendukung Matrix (Proot & Curl)" 15 "pkg install proot-distro curl -y"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Modul Proot & Curl ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
+# 6. Install Ubuntu Rootfs via Proot-Distro
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ]; then
-    run_with_progress_bar "Mengekstrak inti OS Ubuntu Core (Harap tunggu)" 45 "proot-distro install ubuntu"
+    run_with_progress_bar "Mengunduh inti OS Ubuntu Core (Harap tunggu)" 40 "proot-distro install ubuntu"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-run_with_spinner "Menginjeksi nxc1.sh dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
+# 7. Injeksi Skrip Menu dari GitHub dengan Path yang Aman
+run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
 
 # ===================================================================
-# 1. BASHRC TERMUX (Jembatan Auto-Login & AUTO-UPDATE nxc_ubuntu.sh)
+# 8. BASHRC TERMUX (Jembatan Auto-Login & Silent Auto-Update nxc_ubuntu.sh)
 # ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     export DEBIAN_FRONTEND=noninteractive
 
-    # --- BLOK AUTO-UPDATE NXC_UBUNTU.SH ---
+    # --- PRO-GRADE AUTO-UPDATE NXC_UBUNTU.SH ---
     CYAN='\033[1;36m'
     YELLOW='\033[1;33m'
     GREEN='\033[1;32m'
@@ -185,7 +217,7 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
             chmod +x "$LOCAL_FILE"
         fi
     fi
-    # --------------------------------------
+    # ------------------------------------------
 
     pkg update -y > /dev/null 2>&1 && apt-get upgrade -y > /dev/null 2>&1
 
@@ -194,7 +226,7 @@ fi
 EOF_BASHRC
 
 # ===================================================================
-# 2. BASHRC UBUNTU (Alias Menu & Auto-run)
+# 9. BASHRC UBUNTU (Alias Menu & Auto-run Hook)
 # ===================================================================
 cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 # Perintah panggilan cepat (Alias)
@@ -212,6 +244,7 @@ printf "\033[?25h" # Kembalikan kursor
 echo -e "\n${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${NEON_CYAN}║ ${NEON_GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NEON_CYAN}║${NC}"
 echo -e "${NEON_CYAN}╚══════════════════════════════════════════════════╝${NC}"
-echo -e "${NEON_YELLOW} [1] Auto-Updater telah ditanamkan ke akses utama.${NC}"
-echo -e "${NEON_YELLOW} [2] Perintah 'menu' telah dipasang di Ubuntu.${NC}"
-echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
+echo -e "${NEON_YELLOW} [1] Urutan optimal: Storage -> Clean Cache -> Update.${NC}"
+echo -e "${NEON_YELLOW} [2] Proteksi Apt Locks & Auto-Diagnostic Log Aktif.${NC}"
+echo -e "${NEON_YELLOW} [3] Perintah 'menu' & Auto-Updater tertanam sempurna.${NC}"
+echo -e "${NEON_YELLOW} [4] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
