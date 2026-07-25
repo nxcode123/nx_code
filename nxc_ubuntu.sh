@@ -4,7 +4,7 @@
 set -e
 
 echo "=========================================="
-echo "    [TERMUX] Setup Master nxc_ubuntu.sh   "
+echo "    [TERMUX] Setup Auto-Login Ubuntu      "
 echo "=========================================="
 
 # 1. Update & Upgrade Termux
@@ -32,8 +32,8 @@ else
     echo "Ubuntu sudah terinstall."
 fi
 
-# 5. Membuat dan Menanam Menu Ubuntu (nxmenu) secara otomatis
-echo -e "\n[5/5] Membuat & Menanam Menu Interaktif ke Ubuntu..."
+# 5. Membuat dan Menanam Menu (menu) ke dalam Ubuntu & Auto-Login Termux
+echo -e "\n[5/5] Mengatur Auto-Login & Menu 'menu' di Ubuntu..."
 
 cat << 'EOF' > temp_menu.sh
 #!/bin/bash
@@ -45,7 +45,7 @@ while true; do
     echo " 1. Update & Upgrade Ubuntu"
     echo " 2. Install XFCE4 Desktop & X11 Apps"
     echo " 3. Jalankan XFCE Desktop"
-    echo " 4. Keluar (Exit)"
+    echo " 4. Keluar (Exit Termux/Session)"
     echo "=========================================="
     read -p "Pilih menu [1-4]: " choice
 
@@ -69,7 +69,7 @@ while true; do
             dbus-launch --exit-with-session startxfce4
             ;;
         4)
-            echo "Keluar dari menu..."
+            echo "Keluar..."
             exit 0
             ;;
         *)
@@ -80,10 +80,19 @@ while true; do
 done
 EOF
 
-cp temp_menu.sh "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root/nxmenu"
+# Pindahkan file menu ke dalam Ubuntu dan ubah menjadi perintah "menu"
+cp temp_menu.sh "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root/menu"
 rm temp_menu.sh
-proot-distro login ubuntu -- bash -c "mv /root/nxmenu /usr/local/bin/nxmenu && chmod +x /usr/local/bin/nxmenu"
+proot-distro login ubuntu -- bash -c "mv /root/menu /usr/local/bin/menu && chmod +x /usr/local/bin/menu"
+
+# Set agar Termux otomatis login ke Ubuntu setiap dibuka
+if ! grep -q "proot-distro login ubuntu" ~/.bashrc; then
+    echo "" >> ~/.bashrc
+    echo "# Auto-login ke Ubuntu" >> ~/.bashrc
+    echo "proot-distro login ubuntu" >> ~/.bashrc
+fi
 
 echo "=========================================="
 echo " Setup Selesai Sepenuhnya! "
+echo " Silakan restart Termux Anda."
 echo "=========================================="
