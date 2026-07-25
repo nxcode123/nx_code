@@ -19,12 +19,12 @@ LOG_FILE="nxc_setup.log"
 # Kosongkan log lama jika ada
 > "$LOG_FILE"
 
-# Mengembalikan kursor jika skrip dihentikan paksa (Ctrl+C)
-trap 'tput cnorm; echo -e "${NC}"; exit' INT TERM EXIT
+# Mengembalikan kursor jika skrip dihentikan paksa (Ctrl+C) menggunakan ANSI Code
+trap 'printf "\033[?25h"; echo -e "${NC}"; exit' INT TERM EXIT
 
 show_banner() {
     clear
-    tput civis # Sembunyikan kursor
+    printf "\033[?25l" # Sembunyikan kursor (Pengganti tput)
     echo -e "${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${NEON_CYAN}║ ${NEON_PINK}    N X C - U B U N T U   N E U R A L   L I N K    ${NEON_CYAN}║${NC}"
     echo -e "${NEON_CYAN}╠══════════════════════════════════════════════════╣${NC}"
@@ -56,7 +56,7 @@ run_with_spinner() {
         printf "\b${NEON_GREEN}[✔ SYNCED]${NC}\n"
     else
         printf "\b${RED}[✖ FAILED] - Cek nxc_setup.log${NC}\n"
-        tput cnorm
+        printf "\033[?25h" # Kembalikan kursor
         exit 1
     fi
 }
@@ -104,7 +104,7 @@ run_with_progress_bar() {
         for ((i=0; i<width; i++)); do bar+="█"; done
         printf "\r${DARK_GRAY} ↳ ${NEON_PINK}[${RED}%-${width}s${NEON_PINK}] ${RED}ERR%% [✖ FAILED] ${NC}\n" "$bar"
         echo -e "${RED}[!] FATAL ERROR: Silakan cek file nxc_setup.log untuk detailnya.${NC}"
-        tput cnorm
+        printf "\033[?25h" # Kembalikan kursor
         exit 1
     fi
 }
@@ -136,7 +136,8 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-run_with_spinner "Menginjeksi nxc1.sh dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o '$UBUNTU_ROOT/root/nxc1.sh' && chmod +x '$UBUNTU_ROOT/root/nxc1.sh'"
+# PERBAIKAN: Menggunakan backslash (escaped quotes) agar variabel $UBUNTU_ROOT terbaca dengan benar
+run_with_spinner "Menginjeksi nxc1.sh dari GitHub" "curl -s -L 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o \"$UBUNTU_ROOT/root/nxc1.sh\" && chmod +x \"$UBUNTU_ROOT/root/nxc1.sh\""
 
 echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
 
@@ -162,7 +163,6 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
     # Cek GitHub dengan batas waktu max 3 detik agar tidak memblokir saat offline
     if curl -s -L --max-time 3 "$GITHUB_URL" -o "$TMP_FILE"; then
         if [ -f "$LOCAL_FILE" ]; then
-            # Bandingkan isi file lokal dengan file di GitHub
             if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
                 echo -e "${YELLOW}[!] Ditemukan versi baru dari nxc_ubuntu.sh di GitHub!${NC}"
                 read -p "Apakah Anda ingin mengupdate dan menjalankan ulang setup? [y/N]: " confirm
@@ -178,17 +178,15 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
                     rm -f "$TMP_FILE"
                 fi
             else
-                rm -f "$TMP_FILE" # File tidak ada perubahan, hapus temp
+                rm -f "$TMP_FILE"
             fi
         else
-            # Jika file lokal tidak ada, simpan hasil download sebagai patokan versi
             mv "$TMP_FILE" "$LOCAL_FILE"
             chmod +x "$LOCAL_FILE"
         fi
     fi
     # --------------------------------------
 
-    # Sinkronisasi rutin Termux (disembunyikan)
     pkg update -y > /dev/null 2>&1 && apt-get upgrade -y > /dev/null 2>&1
 
     exec proot-distro login ubuntu
@@ -209,7 +207,7 @@ fi
 EOF_UBUNTU_BASHRC
 
 sleep 1 2>/dev/null
-tput cnorm # Kembalikan kursor
+printf "\033[?25h" # Kembalikan kursor (Pengganti tput)
 
 echo -e "\n${NEON_CYAN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${NEON_CYAN}║ ${NEON_GREEN}   NEURAL LINK & GITHUB SYNC BERHASIL!          ${NEON_CYAN}║${NC}"
