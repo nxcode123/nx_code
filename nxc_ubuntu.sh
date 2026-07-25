@@ -11,9 +11,7 @@
 #     dari sini, bukan didefinisikan ulang. File yang sama juga disalin ke
 #     dalam rootfs Ubuntu supaya nxc1.sh bisa source lib yang identik
 #     (tidak ada lagi duplikasi kode UI di dua script).
-#   (fix v1.2.2 tetap dipertahankan: curl -f, validasi bash -n sebelum
-#    overwrite/exec, escape hatch TERMUX_CATCH, guard shell interaktif,
-#    hapus full upgrade otomatis tiap sesi)
+#   - Auto-repair untuk mengatasi error "container ubuntu already exists".
 # ==============================================================================
 
 SCRIPT_VERSION="1.2.3"
@@ -100,9 +98,13 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Modul Proot & Curl ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 6. Install Ubuntu Rootfs via Proot-Distro dengan Smart Skip
+# 6. Install Ubuntu Rootfs via Proot-Distro dengan Smart Skip & Auto-Repair
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
+    # Jika folder ada tapi file os-release tidak ada (instalasi terputus), bersihkan dulu
+    if [ -d "$UBUNTU_ROOT" ]; then
+        rm -rf "$UBUNTU_ROOT"
+    fi
     run_with_progress_bar "Mengunduh inti OS Ubuntu Core (Harap tunggu)" 40 "proot-distro install ubuntu"
 else
     echo -e "${NEON_CYAN}[*] ${WHITE}Inti OS Ubuntu ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
