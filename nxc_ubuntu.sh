@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.1.8
+# VERSION: 1.2.0
 # ==============================================================================
 
-SCRIPT_VERSION="1.1.8"
+SCRIPT_VERSION="1.2.0"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -166,7 +166,7 @@ else
     echo -e "${NEON_CYAN}[*] ${WHITE}Modul Proot & Curl ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
 fi
 
-# 6. Install Ubuntu Rootfs via Proot-Distro dengan Smart Skip (Cek Kontribusi Terdaftar)
+# 6. Install Ubuntu Rootfs via Proot-Distro dengan Smart Skip
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
     run_with_progress_bar "Mengunduh inti OS Ubuntu Core (Harap tunggu)" 40 "proot-distro install ubuntu"
@@ -195,10 +195,10 @@ download_menu_script() {
 
 run_with_spinner "Mengunduh skrip Menu (nxc1.sh) dari GitHub" "download_menu_script"
 
-echo -e "${NEON_CYAN}[*] ${WHITE}Menulis ulang protokol jembatan utama (.bashrc)...${NC}"
+echo -e "${NEON_CYAN}[*] ${WHITE}Meregenerasi ulang profil konfigurasi sistem (.bashrc)...${NC}"
 
 # ===================================================================
-# 8. BASHRC TERMUX (Jembatan Auto-Login & Pesan Up-to-Date Aktif)
+# 8. BASHRC TERMUX (Jembatan Auto-Login & Refresh Otomatis Profile)
 # ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
@@ -225,7 +225,7 @@ if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
                     echo -e "${GREEN}[*] Mengupdate file sistem...${NC}"
                     mv "$TMP_FILE" "$LOCAL_FILE"
                     chmod +x "$LOCAL_FILE"
-                    echo -e "${GREEN}[*] Memulai ulang proses setup...${NC}"
+                    echo -e "${GREEN}[*] Memulai ulang proses setup (meregenerasi konfigurasi)...${NC}"
                     sleep 1
                     exec bash "$LOCAL_FILE"
                 else
@@ -250,7 +250,7 @@ fi
 EOF_BASHRC
 
 # ===================================================================
-# 9. BASHRC UBUNTU (Alias Menu & Auto-run Hook dengan Path Absolut)
+# 9. BASHRC UBUNTU (Regenerasi Total Alias & Hook Menu Ubuntu)
 # ===================================================================
 cat << 'EOF_UBUNTU_BASHRC' > "$UBUNTU_ROOT/root/.bashrc"
 # Perintah panggilan cepat (Alias)
@@ -263,9 +263,8 @@ fi
 EOF_UBUNTU_BASHRC
 
 sleep 1 2>/dev/null
-printf "\033[?25h" # Kembalikan kursor
+printf "\033[?25h"
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.8) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Smart Skip Ubuntu: Melewati instalasi jika kontainer sudah ada.${NC}"
-echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater siap digunakan.${NC}"
-echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.2.0) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Profil .bashrc Termux & Ubuntu berhasil diregenerasi ulang.${NC}"
+echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif dan sinkron.${NC}\n"
