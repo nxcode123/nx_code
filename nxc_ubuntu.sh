@@ -3,15 +3,14 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.3.0
+# VERSION: 1.3.1
 # Source file: nxc_ubuntu.sh
-# CHANGELOG v1.3.0: 
-# - Ultimate Optimization: Integrasi penuh auto-repair proot-distro[span_1](start_span)[span_1](end_span)
+# CHANGELOG v1.3.1: 
+# - Strict Error Handling: Skrip akan berhenti jika download nxc1.sh gagal (100% otomatis & valid)
 # - Otomatisasi global binary 'menu' di dalam Ubuntu
-# - Mode silent update tanpa batas harian (cocok untuk developer)
 # ==============================================================================
 
-SCRIPT_VERSION="1.3.0"
+SCRIPT_VERSION="1.3.1"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
 NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
@@ -98,7 +97,6 @@ UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
     if [ -d "$UBUNTU_ROOT" ] || proot-distro list | grep -q "ubuntu.*installed"; then
         echo -e "${DARK_GRAY}[*] Membersihkan file instalasi Ubuntu yang rusak...${NC}"
-        # Menggunakan proot-distro remove untuk mencegah error container exists[span_2](start_span)[span_2](end_span)
         proot-distro remove ubuntu > /dev/null 2>&1
         chmod -R 777 "$UBUNTU_ROOT" 2>/dev/null
         rm -rf "$UBUNTU_ROOT" 2>/dev/null
@@ -108,17 +106,19 @@ else
     echo -e "${CYBER_BLUE}[*]${WHITE} Sistem operasi Ubuntu ${TOXIC_GREEN}[✔ TERSEDIA]${NC}"
 fi
 
-# 7. Otomatisasi Total: Unduh nxc1.sh & Buat Binary Global 'menu' di Ubuntu
+# 7. Otomatisasi Total dengan Validasi Ketat (Strict Check)
 mkdir -p "$UBUNTU_ROOT/root"
 mkdir -p "$UBUNTU_ROOT/usr/local/bin"
 
-run_with_spinner "Mengunduh file skrip menu (nxc1.sh)" \
-    "curl -sL 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o '$UBUNTU_ROOT/root/nxc1.sh' && chmod +x '$UBUNTU_ROOT/root/nxc1.sh'"
+# Coba unduh nxc1.sh dengan retry. Jika gagal total, hentikan skrip!
+if run_with_spinner "Mengunduh file skrip menu (nxc1.sh)" \
+    "curl -sL --retry 3 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o '$UBUNTU_ROOT/root/nxc1.sh' && chmod +x '$UBUNTU_ROOT/root/nxc1.sh'"; then
+    
+    # Salin library pendukung
+    cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
 
-cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
-
-# Membuat perintah global 'menu' di dalam direktori sistem Ubuntu
-cat << 'EOF_MENU' > "$UBUNTU_ROOT/usr/local/bin/menu"
+    # Membuat perintah global 'menu' di dalam direktori sistem Ubuntu
+    cat << 'EOF_MENU' > "$UBUNTU_ROOT/usr/local/bin/menu"
 #!/bin/bash
 if [ -f "/root/nxc1.sh" ]; then
     bash "/root/nxc1.sh"
@@ -126,7 +126,11 @@ else
     echo -e "\033[1;31m[!] Error: File /root/nxc1.sh tidak ditemukan.\033[0m"
 fi
 EOF_MENU
-chmod +x "$UBUNTU_ROOT/usr/local/bin/menu"
+    chmod +x "$UBUNTU_ROOT/usr/local/bin/menu"
+else
+    echo -e "\n\033[1;31m[!] FATAL ERROR: Gagal mengunduh nxc1.sh dari GitHub. Periksa koneksi internet Anda!\033[0m"
+    exit 1
+fi
 
 echo -e "${CYBER_BLUE}[*]${WHITE} Menerapkan konfigurasi otomatis (.bashrc)...${NC}"
 
