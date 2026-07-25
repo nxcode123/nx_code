@@ -3,10 +3,10 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.1.4
+# VERSION: 1.1.5
 # ==============================================================================
 
-SCRIPT_VERSION="1.1.4"
+SCRIPT_VERSION="1.1.5"
 
 # ANSI Cyberpunk Color Palette
 NEON_GREEN='\033[38;5;46m'
@@ -141,8 +141,12 @@ echo -e "${NEON_CYAN}[*] ${WHITE}Memotong protokol sambutan default (Hushlogin).
 touch "$HOME/.hushlogin"
 sleep 0.5 2>/dev/null
 
-# 2. Storage Setup Diletakkan di Awal
-run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
+# 2. Storage Setup dengan Logika Smart Skip (Jika folder storage sudah ada, lewati)
+if [ ! -d "$HOME/storage" ]; then
+    run_with_spinner "Menghubungkan Neural Storage (Penyimpanan HP)" "termux-setup-storage"
+else
+    echo -e "${NEON_CYAN}[*] ${WHITE}Neural Storage (Penyimpanan HP) ${NEON_GREEN}[✔ ALREADY SECURED]${NC}"
+fi
 
 # 3. Membersihkan Apt Locks, Status Macet, dan Cache Lama (Self-Healing State)
 echo -e "${NEON_CYAN}[*] ${WHITE}Membersihkan cache dan memperbaiki status sistem...${NC}"
@@ -264,7 +268,7 @@ EOF_UBUNTU_BASHRC
 sleep 1 2>/dev/null
 printf "\033[?25h" # Kembalikan kursor
 
-echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.4) DEPLOYMENT BERHASIL!${NC}"
-echo -e "${NEON_YELLOW} [1] Fix Error 404: Sinkronisasi paket tambahan sebelum instalasi proot.${NC}"
+echo -e "\n${NEON_GREEN}[✔] NXC - TERMUX-UBUNTU (v1.1.5) DEPLOYMENT BERHASIL!${NC}"
+echo -e "${NEON_YELLOW} [1] Smart Skip Storage: Melewati setup storage jika sudah ada.${NC}"
 echo -e "${NEON_YELLOW} [2] Perintah 'menu' & Auto-Updater aktif.${NC}"
 echo -e "${NEON_YELLOW} [3] Silakan RESTART aplikasi Termux Anda sekarang.${NC}\n"
