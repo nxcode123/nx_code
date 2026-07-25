@@ -3,14 +3,14 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.2.4
+# VERSION: 1.2.5
 # Source file: nxc_ubuntu.sh
-# CHANGELOG v1.2.4: 
+# CHANGELOG v1.2.5: 
+# - Menghapus teks "Memeriksa pembaruan..." saat buka Termux (Silent Check)
 # - Fix FATAL ERROR pada instalasi Ubuntu (mengganti rm -rf dengan proot-distro remove)
-# - Optimasi loading .bashrc (Daily Check)
 # ==============================================================================
 
-SCRIPT_VERSION="1.2.4"
+SCRIPT_VERSION="1.2.5"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
 NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
@@ -97,10 +97,7 @@ UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
     if [ -d "$UBUNTU_ROOT" ] || proot-distro list | grep -q "ubuntu.*installed"; then
         echo -e "${DARK_GRAY}[*] Membersihkan instalasi Ubuntu yang korup/tidak selesai...${NC}"
-        # Gunakan command resmi proot-distro untuk menghapus sisa instalasi
         proot-distro remove ubuntu > /dev/null 2>&1
-        
-        # Fallback layer (jika remove gagal karena masalah permission root)
         chmod -R 777 "$UBUNTU_ROOT" 2>/dev/null
         rm -rf "$UBUNTU_ROOT" 2>/dev/null
     fi
@@ -118,7 +115,7 @@ cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
 echo -e "${NEON_CYAN}[*] ${WHITE}Meregenerasi ulang profil konfigurasi sistem (.bashrc)...${NC}"
 
 # ===================================================================
-# 8. BASHRC TERMUX (Optimized)
+# 8. BASHRC TERMUX (Optimized & Silent)
 # ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
@@ -132,22 +129,16 @@ if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
         source "$NXC_LIB_LOCAL"
     fi
 
-    # Dapatkan tanggal hari ini (Format: YYYYMMDD)
     TODAY=$(date +%Y%m%d)
     CHECK_UPDATE=false
 
-    # Cek apakah file tanggal ada, dan apakah tanggalnya beda dengan hari ini
     if [ ! -f "$LAST_UPDATE_FILE" ] || [ "$TODAY" != "$(cat "$LAST_UPDATE_FILE" 2>/dev/null)" ]; then
         CHECK_UPDATE=true
     fi
 
     if [ "$CHECK_UPDATE" = true ] && command -v download_and_validate &> /dev/null; then
-        echo -e "\033[1;36m[*] Memeriksa pembaruan sistem (Cek Harian)...\033[0m"
-        
         if [ -f "$LOCAL_FILE" ]; then
-            # Download file baru ke TMP
             if download_and_validate "$GITHUB_URL" "$TMP_FILE" 1 3 2>/dev/null; then
-                # Bandingkan file lokal dengan yang baru diunduh
                 if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
                     echo -e "\033[1;33m[!] Ditemukan versi baru dari nxc_ubuntu.sh di GitHub!\033[0m"
                     read -p "Apakah Anda ingin mengupdate dan menjalankan ulang setup? [y/N]: " confirm
@@ -157,21 +148,17 @@ if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
                         echo "$TODAY" > "$LAST_UPDATE_FILE"
                         exec bash "$LOCAL_FILE"
                     else
-                        # User menolak update, hapus TMP dan catat bahwa hari ini sudah dicek
                         rm -f "$TMP_FILE"
                         echo "$TODAY" > "$LAST_UPDATE_FILE"
                     fi
                 else
-                    # Tidak ada perubahan (file sama persis)
                     rm -f "$TMP_FILE"
                     echo "$TODAY" > "$LAST_UPDATE_FILE"
                 fi
             else
-                # Jika download gagal (misal tidak ada internet), bersihkan TMP
                 rm -f "$TMP_FILE"
             fi
         else
-            # Jika file lokal belum ada sama sekali
             if download_and_validate "$GITHUB_URL" "$LOCAL_FILE" 1 3 2>/dev/null; then
                 chmod +x "$LOCAL_FILE"
                 echo "$TODAY" > "$LAST_UPDATE_FILE"
