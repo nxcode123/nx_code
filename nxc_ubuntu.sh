@@ -3,15 +3,15 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.2.6
+# VERSION: 1.2.7
 # Source file: nxc_ubuntu.sh
-# CHANGELOG v1.2.6: 
+# CHANGELOG v1.2.7: 
+# - Menghapus limit daily update (Cocok untuk developer yang sering push bug fix)
+# - Pengecekan update tetap dalam mode silent
 # - Fix bug pemanggilan 'menu' di Ubuntu (menggunakan global binary file)
-# - Menghapus teks "Memeriksa pembaruan..." saat buka Termux (Silent Check)
-# - Fix FATAL ERROR pada instalasi Ubuntu (proot-distro remove)
 # ==============================================================================
 
-SCRIPT_VERSION="1.2.6"
+SCRIPT_VERSION="1.2.7"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
 NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
@@ -116,28 +116,20 @@ cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
 echo -e "${NEON_CYAN}[*] ${WHITE}Meregenerasi ulang profil konfigurasi sistem (.bashrc)...${NC}"
 
 # ===================================================================
-# 8. BASHRC TERMUX (Optimized & Silent)
+# 8. BASHRC TERMUX (Developer Mode: Check Every Time & Silent)
 # ===================================================================
 cat << 'EOF_BASHRC' > "$HOME/.bashrc"
 if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
     LOCAL_FILE="$HOME/nxc_ubuntu.sh"
     TMP_FILE="$PREFIX/tmp/nxc_ubuntu_new.sh"
     GITHUB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_ubuntu.sh"
-    LAST_UPDATE_FILE="$HOME/.nxc_last_update"
     NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
     if [ -f "$NXC_LIB_LOCAL" ]; then
         source "$NXC_LIB_LOCAL"
     fi
 
-    TODAY=$(date +%Y%m%d)
-    CHECK_UPDATE=false
-
-    if [ ! -f "$LAST_UPDATE_FILE" ] || [ "$TODAY" != "$(cat "$LAST_UPDATE_FILE" 2>/dev/null)" ]; then
-        CHECK_UPDATE=true
-    fi
-
-    if [ "$CHECK_UPDATE" = true ] && command -v download_and_validate &> /dev/null; then
+    if command -v download_and_validate &> /dev/null; then
         if [ -f "$LOCAL_FILE" ]; then
             if download_and_validate "$GITHUB_URL" "$TMP_FILE" 1 3 2>/dev/null; then
                 if ! cmp -s "$LOCAL_FILE" "$TMP_FILE"; then
@@ -146,15 +138,12 @@ if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
                     if [[ "$confirm" =~ ^[Yy]$ ]]; then
                         mv "$TMP_FILE" "$LOCAL_FILE"
                         chmod +x "$LOCAL_FILE"
-                        echo "$TODAY" > "$LAST_UPDATE_FILE"
                         exec bash "$LOCAL_FILE"
                     else
                         rm -f "$TMP_FILE"
-                        echo "$TODAY" > "$LAST_UPDATE_FILE"
                     fi
                 else
                     rm -f "$TMP_FILE"
-                    echo "$TODAY" > "$LAST_UPDATE_FILE"
                 fi
             else
                 rm -f "$TMP_FILE"
@@ -162,7 +151,6 @@ if [[ $- == *i* ]] && [ "$TERMUX_CATCH" != "true" ]; then
         else
             if download_and_validate "$GITHUB_URL" "$LOCAL_FILE" 1 3 2>/dev/null; then
                 chmod +x "$LOCAL_FILE"
-                echo "$TODAY" > "$LAST_UPDATE_FILE"
             fi
         fi
     fi
