@@ -3,14 +3,14 @@
 # ==============================================================================
 # PROJECT: NXC - TERMUX-UBUNTU
 # DESCRIPTION: Automated Termux-to-Ubuntu Proot Bridge with Auto-Update & UI
-# VERSION: 1.3.1
+# VERSION: 1.3.2
 # Source file: nxc_ubuntu.sh
-# CHANGELOG v1.3.1: 
-# - Strict Error Handling: Skrip akan berhenti jika download nxc1.sh gagal (100% otomatis & valid)
-# - Otomatisasi global binary 'menu' di dalam Ubuntu
+# CHANGELOG v1.3.2: 
+# - Fix Absolute Path: Menggunakan path absolut penuh untuk mencegah variabel gagal diekspansi
+# - Mengoptimalkan fungsi download agar langsung dieksekusi tanpa eval yang rentan error
 # ==============================================================================
 
-SCRIPT_VERSION="1.3.1"
+SCRIPT_VERSION="1.3.2"
 NXC_LIB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc_lib.sh"
 NXC_LIB_LOCAL="$HOME/nxc_lib.sh"
 
@@ -93,7 +93,7 @@ else
 fi
 
 # 6. Install Ubuntu Rootfs via Proot-Distro (Smart Skip & Auto-Repair)
-UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
+UBUNTU_ROOT="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu"
 if [ ! -d "$UBUNTU_ROOT" ] || [ ! -f "$UBUNTU_ROOT/etc/os-release" ]; then
     if [ -d "$UBUNTU_ROOT" ] || proot-distro list | grep -q "ubuntu.*installed"; then
         echo -e "${DARK_GRAY}[*] Membersihkan file instalasi Ubuntu yang rusak...${NC}"
@@ -106,15 +106,14 @@ else
     echo -e "${CYBER_BLUE}[*]${WHITE} Sistem operasi Ubuntu ${TOXIC_GREEN}[✔ TERSEDIA]${NC}"
 fi
 
-# 7. Otomatisasi Total dengan Validasi Ketat (Strict Check)
+# 7. Otomatisasi Total Menggunakan Path Absolut
+echo -e "${CYBER_BLUE}[*]${WHITE} Menyiapkan file sistem & kontrol menu di Ubuntu...${NC}"
 mkdir -p "$UBUNTU_ROOT/root"
 mkdir -p "$UBUNTU_ROOT/usr/local/bin"
 
-# Coba unduh nxc1.sh dengan retry. Jika gagal total, hentikan skrip!
-if run_with_spinner "Mengunduh file skrip menu (nxc1.sh)" \
-    "curl -sL --retry 3 'https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh' -o '$UBUNTU_ROOT/root/nxc1.sh' && chmod +x '$UBUNTU_ROOT/root/nxc1.sh'"; then
-    
-    # Salin library pendukung
+# Unduh nxc1.sh langsung menggunakan path absolut yang dijamin aman
+if curl -sL --retry 3 "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/root/nxc1.sh"; then
+    chmod +x "$UBUNTU_ROOT/root/nxc1.sh"
     cp -f "$NXC_LIB_LOCAL" "$UBUNTU_ROOT/root/nxc_lib.sh"
 
     # Membuat perintah global 'menu' di dalam direktori sistem Ubuntu
@@ -127,8 +126,9 @@ else
 fi
 EOF_MENU
     chmod +x "$UBUNTU_ROOT/usr/local/bin/menu"
+    echo -e "${CYBER_BLUE}[*]${WHITE} Konfigurasi menu Ubuntu ${TOXIC_GREEN}[✔ BERHASIL]${NC}"
 else
-    echo -e "\n\033[1;31m[!] FATAL ERROR: Gagal mengunduh nxc1.sh dari GitHub. Periksa koneksi internet Anda!\033[0m"
+    echo -e "${CORRUPT_RED}[!] Error: Gagal mengunduh nxc1.sh dari GitHub!${NC}"
     exit 1
 fi
 
