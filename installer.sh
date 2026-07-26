@@ -3,7 +3,7 @@
 #===================================
 # Nama file: installer.sh
 # Repository: nxcode123/nx_code
-# Version: v0.0.6
+# Version: v0.0.7
 #===================================
 
 set -e
@@ -12,6 +12,7 @@ REPO_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/installer.sh"
 INSTALL_DIR="$HOME/.local/bin"
 TARGET_FILE="$INSTALL_DIR/installer.sh"
 ALIAS_FILE="$INSTALL_DIR/update-installer"
+BASHRC_LINE='if [ -f "$HOME/.local/bin/installer.sh" ]; then bash "$HOME/.local/bin/installer.sh" check; fi'
 
 # Fungsi untuk memeriksa update
 check_update() {
@@ -37,6 +38,13 @@ check_update() {
                 cp "$temp_file" "$TARGET_FILE"
                 chmod +x "$TARGET_FILE"
                 ln -sf "$TARGET_FILE" "$ALIAS_FILE"
+                
+                # Pembersihan konfigurasi lama di ~/.bashrc agar tidak menumpuk saat ada update
+                if grep -q "installer.sh check" ~/.bashrc; then
+                    grep -v "installer.sh check" ~/.bashrc > ~/.bashrc.tmp && mv ~/.bashrc.tmp ~/.bashrc
+                fi
+                echo "$BASHRC_LINE" >> ~/.bashrc
+                
                 echo "[*] Script berhasil diperbarui!"
                 rm -f "$temp_file"
                 return 0
@@ -76,12 +84,11 @@ cp "$0" "$TARGET_FILE"
 chmod +x "$TARGET_FILE"
 ln -sf "$TARGET_FILE" "$ALIAS_FILE"
 
-# 3. Otomatis pasang pemicu cek update ke ~/.bashrc tanpa perlu repot manual
-BASHRC_LINE='if [ -f "$HOME/.local/bin/installer.sh" ]; then bash "$HOME/.local/bin/installer.sh" check; fi'
-if ! grep -q "installer.sh check" ~/.bashrc; then
-    echo "$BASHRC_LINE" >> ~/.bashrc
-    echo "[*] Fitur cek update otomatis saat Termux dibuka telah diaktifkan."
+# 3. Otomatis pasang/perbarui pemicu cek update ke ~/.bashrc
+if grep -q "installer.sh check" ~/.bashrc; then
+    grep -v "installer.sh check" ~/.bashrc > ~/.bashrc.tmp && mv ~/.bashrc.tmp ~/.bashrc
 fi
+echo "$BASHRC_LINE" >> ~/.bashrc
 
 echo "[*] Memulai proses instalasi Ubuntu di Termux secara otomatis..."
 
