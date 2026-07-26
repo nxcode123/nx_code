@@ -3,7 +3,7 @@
 #===================================
 # Nama file: installer.sh
 # Repository: nxcode123/nx_code
-# Version: v0.0.5
+# Version: v0.0.6
 #===================================
 
 set -e
@@ -36,10 +36,7 @@ check_update() {
                 mkdir -p "$INSTALL_DIR"
                 cp "$temp_file" "$TARGET_FILE"
                 chmod +x "$TARGET_FILE"
-                
-                # Buat shortcut command 'update-installer'
                 ln -sf "$TARGET_FILE" "$ALIAS_FILE"
-                
                 echo "[*] Script berhasil diperbarui!"
                 rm -f "$temp_file"
                 return 0
@@ -57,7 +54,7 @@ check_update() {
     fi
 }
 
-# Jika dijalankan dengan argumen 'check', hanya lakukan cek update (untuk perintah update-installer)
+# Jika dijalankan dengan argumen 'check', jalankan pemeriksaan update
 if [ "$1" = "check" ]; then
     check_update true
     exit 0
@@ -66,66 +63,42 @@ fi
 # Pengecekan otomatis saat script utama dijalankan
 check_update false
 
-echo "[*] Memulai proses instalasi Ubuntu di Termux secara otomatis..."
+echo "[*] Menyiapkan lingkungan dan integrasi otomatis..."
 
-# Setup environment agar direktori binary lokal masuk ke PATH jika belum ada
+# 1. Pastikan direktori biner lokal ada dan terdaftar di PATH
 mkdir -p "$INSTALL_DIR"
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 fi
 
-# Salin script ini ke direktori sistem lokal agar bisa diakses global
+# 2. Salin file ke direktori sistem lokal agar perintah update-installer aktif
 cp "$0" "$TARGET_FILE"
 chmod +x "$TARGET_FILE"
 ln -sf "$TARGET_FILE" "$ALIAS_FILE"
 
-# 1. Koneksikan storage (Termux Setup Storage)
-echo "[*] Menghubungkan penyimpanan internal..."
-termux-setup-storage -y || true
-
-# 2. Update dan upgrade package Termux (Non-interaktif)
-echo "[*] Melakukan update dan upgrade sistem Termux..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y && apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
-
-# 3. Install proot-distro
-echo "[*] Menginstal proot-distro..."
-pkg install proot-distro -y
-
-# 4. Install distro Ubuntu
-echo "[*] Menginstal distro Ubuntu..."
-proot-distro install ubuntu
-
-echo "[*] Instalasi selesai! Anda dapat menjalankan Ubuntu menggunakan perintah: proot-distro login ubuntu"
-            rm -f "$TEMP_FILE"
-            exit 0
-            ;;
-          * )
-            echo "[*] Melanjutkan dengan versi saat ini..."
-            ;;
-        esac
-    else
-        echo "[*] Script sudah menggunakan versi terbaru."
-    fi
-    rm -f "$TEMP_FILE"
+# 3. Otomatis pasang pemicu cek update ke ~/.bashrc tanpa perlu repot manual
+BASHRC_LINE='if [ -f "$HOME/.local/bin/installer.sh" ]; then bash "$HOME/.local/bin/installer.sh" check; fi'
+if ! grep -q "installer.sh check" ~/.bashrc; then
+    echo "$BASHRC_LINE" >> ~/.bashrc
+    echo "[*] Fitur cek update otomatis saat Termux dibuka telah diaktifkan."
 fi
 
 echo "[*] Memulai proses instalasi Ubuntu di Termux secara otomatis..."
 
-# 1. Koneksikan storage (Termux Setup Storage)
+# 4. Koneksikan storage (Termux Setup Storage)
 echo "[*] Menghubungkan penyimpanan internal..."
 termux-setup-storage -y || true
 
-# 2. Update dan upgrade package Termux (Non-interaktif)
+# 5. Update dan upgrade package Termux (Non-interaktif)
 echo "[*] Melakukan update dan upgrade sistem Termux..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y && apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
 
-# 3. Install proot-distro
+# 6. Install proot-distro
 echo "[*] Menginstal proot-distro..."
 pkg install proot-distro -y
 
-# 4. Install distro Ubuntu
+# 7. Install distro Ubuntu
 echo "[*] Menginstal distro Ubuntu..."
 proot-distro install ubuntu
 
