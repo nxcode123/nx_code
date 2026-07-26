@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- 1. SCRIPT UTAMA UNTUK MENGUBAH TAMPILAN & LOGO ---
+# --- 1. SCRIPT UTAMA UNTUK MENGUBAH TAMPILAN, LOGO & PERINTAH MENU ---
 cat << 'EOF' > ~/.bashrc
 # --- Konfigurasi CLI Ubuntu nxcode123 ---
 
@@ -18,7 +18,7 @@ if [ "$1" != "--silent" ]; then
     auto_update_cli
 fi
 
-# Fungsi untuk menampilkan Logo/Header
+# Fungsi untuk menampilkan Logo saja saat startup atau clear
 show_logo() {
     clear
     echo -e "\e[1;36m"
@@ -32,13 +32,28 @@ show_logo() {
     echo "-----------------------------------------------------"
 }
 
+# Fungsi untuk menampilkan Menu saat diketik 'menu'
+menu() {
+    show_logo
+    echo -e "\e[1;33m[+] Menu\e[0m"
+    echo ""
+    echo -e "\e[1;32m[1]\e[0m Update"
+    echo ""
+    read -p "Pilih : " menu_choice
+
+    if [ "$menu_choice" = "1" ]; then
+        echo -e "\n\e[1;34m[*] Menjalankan update tema...\e[0m"
+        bash <(curl -s https://raw.githubusercontent.com/nxcode123/nx_code/main/update.sh)
+    fi
+}
+
 # Jalankan logo saat pertama kali dibuka
 show_logo
 
 # Desain Prompt (PS1)
 PS1='\[\e[1;32m\]nxcode@ubuntu\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ '
 
-# Alias Kustom: Mengganti fungsi 'clear' agar logo tidak hilang
+# Alias Kustom: Mengganti fungsi 'clear' agar hanya menampilkan logo
 alias clear='show_logo'
 alias cls='show_logo'
 
@@ -49,6 +64,6 @@ EOF
 
 # Jika tidak dijalankan dalam mode silent, langsung muat ulang bashrc
 if [ "$1" != "--silent" ]; then
-    echo "✅ Tampilan CLI & Logo berhasil diperbarui dari GitHub!"
+    echo "✅ Tampilan CLI berhasil diperbarui dari GitHub!"
     source ~/.bashrc
 fi
