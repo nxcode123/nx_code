@@ -3,37 +3,100 @@
 #===================================
 # Nama file: installer.sh
 # Repository: nxcode123/nx_code
-# Version: v0.0.4
+# Version: v0.0.5
 #===================================
 
 set -e
 
 REPO_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/installer.sh"
-TEMP_FILE="/tmp/installer_latest.sh"
+INSTALL_DIR="$HOME/.local/bin"
+TARGET_FILE="$INSTALL_DIR/installer.sh"
+ALIAS_FILE="$INSTALL_DIR/update-installer"
 
-echo "[*] Memeriksa dan memastikan git terinstal..."
-if ! command -v git &> /dev/null; then
-    pkg install git -y
+# Fungsi untuk memeriksa update
+check_update() {
+    local force_check=$1
+    local temp_file="/tmp/installer_latest.sh"
+    
+    echo "[*] Memeriksa pembaruan dari repository GitHub..."
+    
+    if command -v curl &> /dev/null; then
+        curl -s -o "$temp_file" "$REPO_URL"
+    elif command -v wget &> /dev/null; then
+        wget -q -O "$temp_file" "$REPO_URL"
+    fi
+
+    if [ -f "$temp_file" ]; then
+        if ! cmp -s "$0" "$temp_file"; then
+            echo "[!] Ditemukan pembaruan baru untuk script ini di GitHub!"
+            read -p "[?] Apakah Anda ingin memperbarui script sekarang? (y/n): " choice
+            case "$choice" in 
+              y|Y )
+                echo "[*] Mengupdate script..."
+                mkdir -p "$INSTALL_DIR"
+                cp "$temp_file" "$TARGET_FILE"
+                chmod +x "$TARGET_FILE"
+                
+                # Buat shortcut command 'update-installer'
+                ln -sf "$TARGET_FILE" "$ALIAS_FILE"
+                
+                echo "[*] Script berhasil diperbarui!"
+                rm -f "$temp_file"
+                return 0
+                ;;
+              * )
+                echo "[*] Melewati pembaruan."
+                ;;
+            esac
+        else
+            if [ "$force_check" = "true" ]; then
+                echo "[*] Script sudah menggunakan versi terbaru."
+            fi
+        fi
+        rm -f "$temp_file"
+    fi
+}
+
+# Jika dijalankan dengan argumen 'check', hanya lakukan cek update (untuk perintah update-installer)
+if [ "$1" = "check" ]; then
+    check_update true
+    exit 0
 fi
 
-echo "[*] Memeriksa pembaruan dari repository GitHub..."
+# Pengecekan otomatis saat script utama dijalankan
+check_update false
 
-if command -v curl &> /dev/null; then
-    curl -s -o "$TEMP_FILE" "$REPO_URL"
-elif command -v wget &> /dev/null; then
-    wget -q -O "$TEMP_FILE" "$REPO_URL"
+echo "[*] Memulai proses instalasi Ubuntu di Termux secara otomatis..."
+
+# Setup environment agar direktori binary lokal masuk ke PATH jika belum ada
+mkdir -p "$INSTALL_DIR"
+if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 fi
 
-if [ -f "$TEMP_FILE" ]; then
-    if ! cmp -s "$0" "$TEMP_FILE"; then
-        echo "[!] Ditemukan pembaruan baru untuk script ini di GitHub!"
-        read -p "[?] Apakah Anda ingin mengupdate script ini sebelum melanjutkan? (y/n): " choice
-        case "$choice" in 
-          y|Y )
-            echo "[*] Mengupdate script..."
-            cp "$TEMP_FILE" "$0"
-            chmod +x "$0"
-            echo "[*] Script berhasil diupdate! Silakan jalankan ulang script."
+# Salin script ini ke direktori sistem lokal agar bisa diakses global
+cp "$0" "$TARGET_FILE"
+chmod +x "$TARGET_FILE"
+ln -sf "$TARGET_FILE" "$ALIAS_FILE"
+
+# 1. Koneksikan storage (Termux Setup Storage)
+echo "[*] Menghubungkan penyimpanan internal..."
+termux-setup-storage -y || true
+
+# 2. Update dan upgrade package Termux (Non-interaktif)
+echo "[*] Melakukan update dan upgrade sistem Termux..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y && apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
+
+# 3. Install proot-distro
+echo "[*] Menginstal proot-distro..."
+pkg install proot-distro -y
+
+# 4. Install distro Ubuntu
+echo "[*] Menginstal distro Ubuntu..."
+proot-distro install ubuntu
+
+echo "[*] Instalasi selesai! Anda dapat menjalankan Ubuntu menggunakan perintah: proot-distro login ubuntu"
             rm -f "$TEMP_FILE"
             exit 0
             ;;
