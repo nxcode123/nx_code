@@ -51,7 +51,7 @@ touch ~/.hushlogin
 mkdir -p ~/nx_code
 
 # Tambahkan konfigurasi ke .bashrc:
-# - Cek update dari GitHub secara otomatis di background saat dibuka
+# - Cek update dari GitHub secara otomatis di background saat Termux dibuka
 # - Langsung masuk ke Ubuntu PRoot
 cat << 'EOF' >> ~/.bashrc
 
