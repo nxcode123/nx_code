@@ -1,100 +1,78 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/bin/bash
 
-#===================================
-# Nama file: installer.sh
-# Repository: nxcode123/nx_code
-# Version: v0.0.8
-#===================================
-
+# Pastikan script berhenti jika terjadi error
 set -e
 
-REPO_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/installer.sh"
-INSTALL_DIR="$HOME/.local/bin"
-TARGET_FILE="$INSTALL_DIR/installer.sh"
-ALIAS_FILE="$INSTALL_DIR/update-installer"
-BASHRC_LINE='if [ -f "$HOME/.local/bin/installer.sh" ]; then bash "$HOME/.local/bin/installer.sh" check; fi'
+echo "=================================================="
+echo "  Memulai Instalasi Ubuntu PRoot + XFCE4 di Termux"
+echo "=================================================="
 
-# Fungsi untuk memeriksa update
-check_update() {
-    local force_check=$1
-    local temp_file="/tmp/installer_latest.sh"
-    
-    echo "check update ...."
-    
-    if command -v curl &> /dev/null; then
-        curl -s -o "$temp_file" "$REPO_URL"
-    elif command -v wget &> /dev/null; then
-        wget -q -O "$temp_file" "$REPO_URL"
-    fi
+# 1. Update Termux dan Install Kebutuhan Dasar
+echo "[1/5] Mengupdate Termux dan menginstal paket esensial..."
+pkg update && pkg upgrade -y
+pkg install wget curl git proot-distro -y
 
-    if [ -f "$temp_file" ]; then
-        if ! cmp -s "$0" "$temp_file"; then
-            echo "[!] Ditemukan pembaruan baru untuk script ini di GitHub!"
-            read -p "[?] Apakah Anda ingin memperbarui script sekarang? (y/n): " choice
-            case "$choice" in 
-              y|Y )
-                echo "[*] Mengupdate script..."
-                mkdir -p "$INSTALL_DIR"
-                cp "$temp_file" "$TARGET_FILE"
-                chmod +x "$TARGET_FILE"
-                ln -sf "$TARGET_FILE" "$ALIAS_FILE"
-                
-                if grep -q "installer.sh check" ~/.bashrc; then
-                    grep -v "installer.sh check" ~/.bashrc > ~/.bashrc.tmp && mv ~/.bashrc.tmp ~/.bashrc
-                fi
-                echo "$BASHRC_LINE" >> ~/.bashrc
-                
-                echo "[*] Script berhasil diperbarui!"
-                rm -f "$temp_file"
-                return 0
-                ;;
-              * )
-                echo "[*] Melewati pembaruan."
-                ;;
-            esac
-        else
-            echo "up to date"
-        fi
-        rm -f "$temp_file"
-    fi
-}
-
-if [ "$1" = "check" ]; then
-    check_update true
-    exit 0
+# 2. Instalasi Ubuntu PRoot
+echo "[2/5] Menginstal distribusi Ubuntu melalui proot-distro..."
+if proot-distro list | grep -q "ubuntu.*installed"; then
+    echo "Ubuntu sudah terinstal sebelumnya, melewati proses instalasi..."
+else
+    proot-distro install ubuntu
 fi
 
-check_update false
+# 3. Konfigurasi dan Instalasi XFCE4 di dalam Ubuntu
+echo "[3/5] Menginstal XFCE4 dan paket utilitas di dalam Ubuntu..."
+proot-distro login ubuntu -- bash -c "
+    apt update && apt upgrade -y
+    apt install xfce4 xfce4-goodies dbus-x11 net-tools wget curl git -y
+"
 
-echo "[*] Menyiapkan lingkungan dan integrasi otomatis..."
+# 4. Membuat Script Peluncur (Launcher) Pintasan 'start-ubuntu'
+echo "[4/5] Membuat script pintasan untuk menjalankan GUI..."
+cat << 'EOF' > $PREFIX/bin/start-ubuntu
+#!/bin/bash
+export DISPLAY=:0
+export PULSE_AUDIO_SERVER=127.0.0.1
+proot-distro login ubuntu --user root --shared-tmp -- bash -c "
+    export DISPLAY=:0
+    export HOME=/root
+    dbus-launch --exit-with-session startxfce4
+"
+EOF
 
-mkdir -p "$INSTALL_DIR"
-if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+# Berikan izin eksekusi pada script pintasan
+chmod +x $PREFIX/bin/start-ubuntu
+
+# 5. Konfigurasi Auto-Update, Otomatis Masuk Ubuntu & Hapus Pesan Sambutan
+echo "[5/5] Mengatur fitur auto-update, login otomatis & membersihkan tampilan..."
+touch ~/.hushlogin
+
+# Buat direktori kerja untuk menyimpan script agar bisa di-git pull
+mkdir -p ~/nx_code
+
+# Tambahkan konfigurasi ke .bashrc:
+# - Cek update dari GitHub secara otomatis di background saat dibuka
+# - Langsung masuk ke Ubuntu PRoot
+cat << 'EOF' >> ~/.bashrc
+
+# Fitur Auto-Update dari GitHub
+if [ -d "$HOME/nx_code/.git" ]; then
+    (cd "$HOME/nx_code" && git pull -q > /dev/null 2>&1 &)
 fi
 
-cp "$0" "$TARGET_FILE"
-chmod +x "$TARGET_FILE"
-ln -sf "$TARGET_FILE" "$ALIAS_FILE"
-
-if grep -q "installer.sh check" ~/.bashrc; then
-    grep -v "installer.sh check" ~/.bashrc > ~/.bashrc.tmp && mv ~/.bashrc.tmp ~/.bashrc
+# Otomatis masuk Ubuntu
+if [ -z "$Ubuntu_Session" ] && [ "$TERM" != "screen" ]; then
+    export Ubuntu_Session=true
+    proot-distro login ubuntu --user root --shared-tmp
+    exit
 fi
-echo "$BASHRC_LINE" >> ~/.bashrc
+EOF
 
-echo "[*] Memulai proses instalasi Ubuntu di Termux secara otomatis..."
-
-echo "[*] Menghubungkan penyimpanan internal..."
-termux-setup-storage -y || true
-
-echo "[*] Melakukan update dan upgrade sistem Termux..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y && apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
-
-echo "[*] Menginstal proot-distro..."
-pkg install proot-distro -y
-
-echo "[*] Menginstal distro Ubuntu..."
-proot-distro install ubuntu
-
-echo "[*] Instalasi selesai! Anda dapat menjalankan Ubuntu menggunakan perintah: proot-distro login ubuntu"
+echo "=================================================="
+echo "  Instalasi & Fitur Auto-Update Selesai!"
+echo "=================================================="
+echo "Catatan:"
+echo "- Setiap Termux dibuka, sistem otomatis mengecek update git."
+echo "- Langsung masuk ke Ubuntu PRoot."
+echo "- Ketik 'start-ubuntu' setelah membuka X11 untuk GUI."
+echo "=================================================="
