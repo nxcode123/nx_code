@@ -2,10 +2,11 @@
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-# --- 1. CEK UPDATE SCRIPT DARI GITHUB OTOMATIS ---
+# --- 1. CEK UPDATE SCRIPT DARI GITHUB DENGAN PILIHAN ---
 TEMP_SCRIPT="/tmp/nxc1_latest.sh"
 curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$TEMP_SCRIPT"
 
@@ -14,11 +15,20 @@ if [ -s "$TEMP_SCRIPT" ]; then
     ONLINE_HASH=$(md5sum "$TEMP_SCRIPT" | awk '{print $1}')
 
     if [ "$LOCAL_HASH" != "$ONLINE_HASH" ]; then
-        echo -e "${GREEN}[+] Memperbarui nxc1.sh ke versi terbaru...${NC}"
-        cp "$TEMP_SCRIPT" "$0"
-        chmod +x "$0"
-        rm -f "$TEMP_SCRIPT"
-        exec "$0"
+        echo -e "${YELLOW}[!] Pembaruan baru untuk script nxc1.sh ditemukan!${NC}"
+        read -p "Apakah Anda ingin memperbarui script sekarang? (y/n): " choice
+        case "$choice" in 
+          y|Y ) 
+            cp "$TEMP_SCRIPT" "$0"
+            chmod +x "$0"
+            echo -e "${GREEN}[+] Script berhasil diperbarui. Memuat ulang...${NC}"
+            rm -f "$TEMP_SCRIPT"
+            exec "$0"
+            ;;
+          * ) 
+            echo -e "${CYAN}[*] Pembaruan dilewati.${NC}"
+            ;;
+        esac
     fi
     rm -f "$TEMP_SCRIPT"
 fi
