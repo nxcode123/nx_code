@@ -6,7 +6,7 @@ NC='\033[0m'
 
 echo -e "${CYAN}[*] Memulai proses instalasi otomatis NXC...${NC}"
 
-# 1. Update Termux dan instal dependensi yang dibutuhkan (tanpa full upgrade massal agar curl tidak patah)
+# 1. Update Termux dan instal dependensi dasar (git & proot-distro)
 echo -e "${GREEN}[+] Memperbarui Termux & menginstal dependensi...${NC}"
 termux-setup-storage -y &>/dev/null
 pkg update -y
@@ -16,16 +16,16 @@ pkg install git proot-distro -y
 echo -e "${GREEN}[+] Menginstal Ubuntu via Proot-Distro...${NC}"
 proot-distro install ubuntu
 
-# 3. Mengunduh nxc1.sh langsung ke dalam root Ubuntu menggunakan curl bawaan
-echo -e "${GREEN}[+] Mengunduh nxc1.sh dari GitHub...${NC}"
-curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh"
-
-# Berikan izin eksekusi pada nxc1.sh di dalam Ubuntu
-chmod +x "$PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh"
+# 3. Mengunduh nxc1.sh langsung ke dalam root Ubuntu menggunakan jalur direktori yang benar (installed-rootfs)
+echo -e "${GREEN}[+] Mengunduh nxc1.sh ke dalam Ubuntu...${NC}"
+UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root"
+mkdir -p "$UBUNTU_ROOT"
+curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/nxc1.sh"
+chmod +x "$UBUNTU_ROOT/nxc1.sh"
 
 # 4. Buat otomatis menjalankan nxc1.sh setiap masuk Ubuntu (.bashrc Ubuntu)
 echo -e "${GREEN}[+] Mengatur agar nxc1.sh berjalan otomatis saat masuk Ubuntu...${NC}"
-UBUNTU_BASHRC="$PREFIX/var/lib/proot-distro/installed-ubuntu/root/.bashrc"
+UBUNTU_BASHRC="$UBUNTU_ROOT/.bashrc"
 if ! grep -q "nxc1.sh" "$UBUNTU_BASHRC"; then
     echo -e "\n# Jalankan nxc1 otomatis\n/root/nxc1.sh" >> "$UBUNTU_BASHRC"
 fi
@@ -41,4 +41,4 @@ fi
 echo -e "${GREEN}[+] Menghapus pesan default awal Termux...${NC}"
 touch "$HOME/.hushlogin"
 
-echo -e "${CYAN}[*] Selesai! Restart Termux atau buka sesi baru untuk masuk ke Ubuntu.${NC}"
+echo -e "${CYAN}[*] Instalasi Selesai! Silakan restart Termux Anda.${NC}"
