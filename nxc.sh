@@ -8,14 +8,15 @@ NC='\033[0m' # No Color
 
 echo -e "${CYAN}[*] Memulai proses instalasi otomatis NXC...${NC}"
 
-# 1. Update dan upgrade Termux full otomatis
+# 1. Update dan upgrade Termux full otomatis tanpa intervensi (menggunakan --force-confold)
 echo -e "${GREEN}[+] Melakukan update & upgrade Termux...${NC}"
 termux-setup-storage -y &>/dev/null
-pkg update -y && pkg upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+pkg update -y 
+apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y
 
-# 2. Install git
-echo -e "${GREEN}[+] Menginstal Git...${NC}"
-pkg install git -y
+# 2. Install dependensi dasar (Git, Wget, dan Curl yang sudah disinkronkan)
+echo -e "${GREEN}[+] Menginstal Git, Wget, dan Curl...${NC}"
+pkg install git wget curl -y
 
 # 3. Install proot-distro
 echo -e "${GREEN}[+] Menginstal Proot-Distro...${NC}"
@@ -27,12 +28,11 @@ proot-distro install ubuntu
 
 # 5. Mengunduh nxc1.sh dari GitHub ke dalam root Ubuntu
 echo -e "${GREEN}[+] Mengunduh nxc1.sh dari GitHub...${NC}"
-pkg install curl -y
-# Ambil file nxc1.sh langsung ke dalam direktori root Ubuntu
-curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o $PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh
+# Menggunakan wget sebagai alternatif yang lebih stabil di Termux
+wget -q --no-check-certificate "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -O "$PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh"
 
 # Berikan izin eksekusi pada nxc1.sh di dalam Ubuntu
-chmod +x $PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh
+chmod +x "$PREFIX/var/lib/proot-distro/installed-ubuntu/root/nxc1.sh"
 
 # 6. Buat otomatis menjalankan nxc1.sh setiap masuk Ubuntu (.bashrc Ubuntu)
 echo -e "${GREEN}[+] Mengatur agar nxc1.sh berjalan otomatis saat masuk Ubuntu...${NC}"
@@ -52,4 +52,4 @@ fi
 echo -e "${GREEN}[+] Menghapus pesan default awal Termux...${NC}"
 touch "$HOME/.hushlogin"
 
-echo -e "${CYAN}[*] Instalasi Selesai! Silakan restart Termux Anda untuk melihat hasilnya.${NC}"
+echo -e "${CYAN}[*] Instalasi Selesai! Silakan ketik 'exit' atau restart Termux Anda untuk masuk ke Ubuntu.${NC}"
