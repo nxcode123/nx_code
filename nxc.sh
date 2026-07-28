@@ -19,6 +19,53 @@ proot-distro install ubuntu
 # 3. Mengunduh nxc1.sh langsung ke dalam root Ubuntu menggunakan jalur direktori yang benar (installed-rootfs)
 echo -e "${GREEN}[+] Mengunduh nxc1.sh ke dalam Ubuntu...${NC}"
 UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root"
+a#!/bin/bash
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${CYAN}[*] Memulai proses instalasi otomatis NXC...${NC}"
+
+# 1. Update Termux dan instal dependensi dasar
+echo -e "${GREEN}[+] Memperbarui Termux & menginstal dependensi...${NC}"
+termux-setup-storage -y &>/dev/null
+pkg update -y
+pkg install git proot-distro -y
+
+# 2. Install Proot Ubuntu otomatis
+echo -e "${GREEN}[+] Menginstal Ubuntu via Proot-Distro...${NC}"
+proot-distro remove ubuntu &>/dev/null
+proot-distro install ubuntu
+
+# 3. Definisikan path root Ubuntu di Termux
+UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root"
+
+# 4. Buat folder /root di dalam Ubuntu secara paksa jika belum ada, lalu unduh nxc1.sh
+echo -e "${GREEN}[+] Mengunduh nxc1.sh langsung ke dalam Ubuntu...${NC}"
+mkdir -p "$UBUNTU_ROOT"
+curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/nxc1.sh"
+chmod +x "$UBUNTU_ROOT/nxc1.sh"
+
+# 5. Pasang otomatisasi agar nxc1.sh jalan otomatis setiap masuk Ubuntu
+echo -e "${GREEN}[+] Mengatur agar nxc1.sh berjalan otomatis saat masuk Ubuntu...${NC}"
+UBUNTU_BASHRC="$UBUNTU_ROOT/.bashrc"
+if ! grep -q "nxc1.sh" "$UBUNTU_BASHRC"; then
+    echo -e "\n# Jalankan nxc1 otomatis\n/root/nxc1.sh" >> "$UBUNTU_BASHRC"
+fi
+
+# 6. Atur Termux agar langsung masuk Ubuntu saat dibuka
+echo -e "${GREEN}[+] Mengatur Termux agar langsung masuk Ubuntu...${NC}"
+TERMUX_BASHRC="$HOME/.bashrc"
+if ! grep -q "proot-distro login ubuntu" "$TERMUX_BASHRC"; then
+    echo -e "\n# Langsung masuk Ubuntu saat Termux dibuka\nproot-distro login ubuntu" >> "$TERMUX_BASHRC"
+fi
+
+# 7. Hapus pesan default awal Termux (MOTD)
+echo -e "${GREEN}[+] Menghapus pesan default awal Termux...${NC}"
+touch "$HOME/.hushlogin"
+
+echo -e "${CYAN}[*] Instalasi Selesai! Silakan tutup total Termux dan buka kembali untuk melihat hasilnya secara otomatis.${NC}"
 mkdir -p "$UBUNTU_ROOT"
 curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/nxc1.sh"
 chmod +x "$UBUNTU_ROOT/nxc1.sh"
