@@ -22,34 +22,37 @@ trap cleanup_terminal EXIT INT TERM
 
 apply_theme() {
     local theme="${1:-cyberpunk}"
-    case "$theme" in
-        cyberpunk)
-            CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        matrix)
-            CYAN='\033[0;32m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[0;32m'; PURPLE='\033[2;32m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        dracula)
-            CYAN='\033[1;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;35m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        synthwave)
-            CYAN='\033[1;36m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[1;91m'; PURPLE='\033[1;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        ocean)
-            CYAN='\033[1;34m'; NEON_GREEN='\033[0;36m'; NEON_PINK='\033[1;36m'; PURPLE='\033[0;34m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        sunset)
-            CYAN='\033[1;33m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;31m'; PURPLE='\033[0;33m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        emerald)
-            CYAN='\033[0;36m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[0;32m'; PURPLE='\033[0;32m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        bloodmoon)
-            CYAN='\033[0;31m'; NEON_GREEN='\033[1;33m'; NEON_PINK='\033[1;91m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        monokai)
-            CYAN='\033[1;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;33m'; PURPLE='\033[1;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        arctic)
-            CYAN='\033[1;96m'; NEON_GREEN='\033[1;36m'; NEON_PINK='\033[1;34m'; PURPLE='\033[0;36m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        gold)
-            CYAN='\033[1;33m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[0;33m'; PURPLE='\033[0;33m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-        *)
-            CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
-    esac
+    local theme_file="$THEME_DIR/${theme}.sh"
+    local local_repo_theme="./themes/${theme}.sh"
+
+    mkdir -p "$THEME_DIR" 2>/dev/null
+
+    # 1. Salin dari repositori lokal jika tersedia
+    if [ ! -s "$theme_file" ] && [ -s "$local_repo_theme" ]; then
+        cp "$local_repo_theme" "$theme_file" 2>/dev/null
+    fi
+
+    # 2. Unduh dari GitHub jika belum ada di lokal
+    if [ ! -s "$theme_file" ]; then
+        curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/${theme}.sh" -o "$theme_file" 2>/dev/null
+    fi
+
+    # 3. Source modul tema jika ada
+    if [ -s "$theme_file" ]; then
+        source "$theme_file" 2>/dev/null
+    else
+        # Fallback default warna jika file belum ada / offline
+        CYAN='\033[0;36m'
+        NEON_GREEN='\033[1;32m'
+        NEON_PINK='\033[1;95m'
+        PURPLE='\033[0;35m'
+        WHITE='\033[1;37m'
+        NC='\033[0m'
+    fi
+
     SUCCESS="${NEON_GREEN}[✔]${NC}"
     PROCESS="${CYAN}[➔]${NC}"
+    ACTIVE_THEME="$theme"
 }
 
 setup_nx_menu_command() {
@@ -78,23 +81,15 @@ EOF_NX
 init_theme_system() {
     mkdir -p "$THEME_DIR" 2>/dev/null
 
+    # Salin semua tema dari repositori lokal jika tersedia
+    if [ -d "./themes" ]; then
+        cp -r ./themes/* "$THEME_DIR/" 2>/dev/null || true
+    fi
+
     ACTIVE_THEME="cyberpunk"
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" 2>/dev/null
 
-    local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
-
-    # Salin dari repositori lokal jika tersedia
-    if [ ! -f "$theme_file" ] && [ -f "./themes/$ACTIVE_THEME.sh" ]; then
-        cp "./themes/$ACTIVE_THEME.sh" "$theme_file" 2>/dev/null
-    fi
-
-    if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
-        source "$theme_file" 2>/dev/null
-        SUCCESS="${NEON_GREEN}[✔]${NC}"
-        PROCESS="${CYAN}[➔]${NC}"
-    else
-        apply_theme "$ACTIVE_THEME"
-    fi
+    apply_theme "$ACTIVE_THEME"
 }
 
 init_theme_system
@@ -475,13 +470,55 @@ kill_ubuntu_gui() {
 }
 
 change_theme_menu() {
-    local t_names=("cyberpunk" "matrix" "dracula" "synthwave" "ocean" "sunset" "emerald" "bloodmoon" "monokai" "arctic" "gold")
-    local t_descs=("Cyberpunk Neon Theme" "Matrix Green Hacker" "Dracula Dark Pro" "Synthwave 84 Neon" "Oceanic Deep Blue" "Sunset Orange" "Emerald Forest" "Blood Moon Crimson" "Monokai Pro" "Arctic Frost Ice" "Cyber Gold Luxury")
-
     while true; do
+        local t_names=()
+        local t_descs=()
+        local seen_names=" "
+
+        # 1. Muat daftar tema dari manifest theme.list (lokal / download)
+        local manifest="$THEME_DIR/theme.list"
+        if [ ! -s "$manifest" ] && [ -s "./themes/theme.list" ]; then
+            cp "./themes/theme.list" "$manifest" 2>/dev/null
+        fi
+        if [ ! -s "$manifest" ]; then
+            curl $NX_CURL_OPTS "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null
+        fi
+
+        if [ -s "$manifest" ]; then
+            while IFS='|' read -r t_id t_desc || [ -n "$t_id" ]; do
+                [[ -z "$t_id" || "$t_id" =~ ^[[:space:]]*# ]] && continue
+                t_id=$(echo "$t_id" | tr -d '\r' | xargs)
+                t_desc=$(echo "$t_desc" | tr -d '\r' | xargs)
+                if [ -n "$t_id" ]; then
+                    t_names+=("$t_id")
+                    t_descs+=("${t_desc:-$t_id Theme}")
+                    seen_names="${seen_names}${t_id} "
+                fi
+            done < "$manifest"
+        fi
+
+        # 2. Pindai tema kustom tambahan di direktori tema
+        for f in "$THEME_DIR"/*.sh ./themes/*.sh; do
+            [ -f "$f" ] || continue
+            local base_name
+            base_name=$(basename "$f" .sh)
+            [[ "$base_name" == "*" ]] && continue
+            if [[ "$seen_names" != *" $base_name "* ]]; then
+                t_names+=("$base_name")
+                t_descs+=("${base_name^} (Custom Theme)")
+                seen_names="${seen_names}${base_name} "
+            fi
+        done
+
+        # 3. Fallback jika tidak ada manifes sama sekali
+        if [ ${#t_names[@]} -eq 0 ]; then
+            t_names=("cyberpunk" "matrix" "dracula" "synthwave" "ocean" "sunset" "emerald" "bloodmoon" "monokai" "arctic" "gold")
+            t_descs=("Cyberpunk Neon Theme" "Matrix Green Hacker" "Dracula Dark Pro" "Synthwave 84 Neon" "Oceanic Deep Blue" "Sunset Orange" "Emerald Forest" "Blood Moon Crimson" "Monokai Pro" "Arctic Frost Ice" "Cyber Gold Luxury")
+        fi
+
         animate_logo
         echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
-        echo -e "${WHITE}PILIH TEMA INTERFACE (NX THEME SYSTEM)${NC}"
+        echo -e "${WHITE}PILIH TEMA INTERFACE (NX THEME SYSTEM - MODULAR)${NC}"
         echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
 
         for i in "${!t_names[@]}"; do
@@ -503,8 +540,7 @@ change_theme_menu() {
         local idx=$((t_choice - 1))
         if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#t_names[@]}" ]; then
             local chosen="${t_names[$idx]}"
-            ACTIVE_THEME="$chosen"
-            apply_theme "$ACTIVE_THEME"
+            apply_theme "$chosen"
 
             mkdir -p "$THEME_DIR" 2>/dev/null
             echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"

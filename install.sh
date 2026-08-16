@@ -17,8 +17,13 @@ echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-dis
 pkg update -y -o Dpkg::Options::="--force-confold" || true
 pkg install -y -o Dpkg::Options::="--force-confold" curl git proot-distro pulseaudio coreutils
 
-# 2. Download / salin nx_code.sh ke direktori HOME
-echo -e "\n\033[0;36m[➔] Mengunduh skrip inti NX_CODE...\033[0m"
+# 2. Download / salin nx_code.sh & direktori themes ke direktori HOME
+echo -e "\n\033[0;36m[➔] Menyiapkan modul tema dan skrip inti NX_CODE...\033[0m"
+mkdir -p "$HOME/.nx_code/themes" 2>/dev/null || true
+if [ -d "./themes" ]; then
+    cp -r ./themes/* "$HOME/.nx_code/themes/" 2>/dev/null || true
+fi
+
 if [ -f "./nx_code.sh" ]; then
     cp "./nx_code.sh" "$LOCAL_SCRIPT"
 else
