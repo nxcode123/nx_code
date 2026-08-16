@@ -1,81 +1,55 @@
-# NetExec (NXC) Termux Updater & Upgrader 🚀
+# Termux System Updater & Upgrader 🚀
 
-[![Termux](https://shields.io)](https://termux.dev)
-[![License: MIT](https://shields.io)](https://opensource.org)
+[![Termux](https://img.shields.io/badge/Termux-Supported-black?logo=termux)](https://termux.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Script Bash otomatis untuk mengelola, memperbarui (*update*), meningkatkan (*upgrade*), dan memasang **NetExec (NXC)** secara instan di dalam aplikasi Termux Android. 
-
-NetExec adalah alat bantu penetrasi jaringan modern (penerus CrackMapExec) yang digunakan untuk mengaudit keamanan berbagai protokol jaringan seperti SMB, SSH, LDAP, WinRM, dan lainnya.
+Script Bash otomatis untuk memperbarui (*update*) dan meningkatkan (*upgrade*) semua paket sistem di aplikasi **Termux Android** secara instan dengan 1 baris perintah.
 
 ---
 
 ## ✨ Fitur Utama
 
-* **🔄 Auto-System Update**: Memperbarui core paket sistem dan repositori Termux ke versi terbaru secara otomatis.
-* **⚡ Smart Upgrade**: Mendeteksi keberadaan instalasi NetExec di perangkat Anda dan memperbaruinya langsung dari *source code* resmi GitHub menggunakan `pipx` atau `pip`.
-* **📥 Auto-Installer**: Jika NetExec belum terdeteksi di sistem, script akan otomatis menawarkan instalasi instan lengkap beserta seluruh dependensi Python, Git, OpenSSL, dan compiler Clang.
-* **🧹 System Optimization**: Menjalankan perintah pembersihan otomatis (`autoclean`) untuk menghemat ruang penyimpanan perangkat Anda setelah proses pembaruan selesai.
+* **🔄 Auto System Update & Upgrade**: Menjalankan pembaruan repositori dan seluruh paket aplikasi Termux (`pkg update` & `pkg upgrade`) secara otomatis.
+* **🛡️ Error Handling**: Memeriksa status keberhasilan proses update dan memberikan indikator visual yang jelas.
+* **🎨 Tampilan Bersih & Berwarna**: Antarmuka terminal dilengkapi kode warna ANSI untuk memudahkan pemantauan proses.
 
 ---
 
-## 💻 Cara Penggunaan (Instalasi 1 Baris)
+## 💻 Cara Penggunaan (1 Baris Perintah)
 
-Buka aplikasi Termux Anda, cukup salin dan tempel salah satu perintah di bawah ini untuk mengunduh dan mengeksekusi script secara otomatis:
+Buka aplikasi Termux, salin dan tempel salah satu perintah berikut:
 
-### Pilihan A: Menggunakan `wget` (Direkomendasikan)
+### Pilihan A: Menggunakan `curl` (Direkomendasikan)
 ```bash
-pkg install wget -y && wget -qO nxc.sh https://githubusercontent.com && chmod +x nxc.sh && ./nxc.sh
+pkg install curl -y && curl -sLk https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc.sh -o nxc.sh && chmod +x nxc.sh && ./nxc.sh
 ```
 
-### Pilihan B: Menggunakan `curl`
+### Pilihan B: Menggunakan `wget`
 ```bash
-pkg install curl -y && curl -sLk https://githubusercontent.com -o nxc.sh && chmod +x nxc.sh && ./nxc.sh
+pkg install wget -y && wget -qO nxc.sh https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc.sh && chmod +x nxc.sh && ./nxc.sh
 ```
 
 ---
 
 ## 🛠️ Metode Manual (Kloning Git)
 
-Jika Anda lebih memilih untuk mengkloning repositori ini secara manual, ikuti langkah-langkah berikut:
+Jika Anda lebih memilih untuk mengkloning repositori ini secara manual:
 
-1. Pastikan Git sudah terpasang, lalu klon repositori ini:
+1. Pastikan Git sudah terpasang:
    ```bash
-   git clone https://github.com
+   pkg install git -y
    ```
-2. Masuk ke dalam direktori proyek:
+2. Klon repositori ini:
    ```bash
-   cd nx_code
+   git clone https://github.com/nxcode123/nx_code.git
    ```
-3. Berikan izin akses eksekusi pada script:
+3. Masuk ke direktori dan jalankan script:
    ```bash
-   chmod +x nxc.sh
+   cd nx_code && chmod +x nxc.sh && ./nxc.sh
    ```
-4. Jalankan script:
-   ```bash
-   ./nxc.sh
-   ```
-
----
-
-## 📝 Catatan Penting Setelah Instalasi
-
-Setelah proses instalasi pertama kali selesai, Anda wajib memuat ulang konfigurasi *environment* Termux Anda agar perintah `nxc` bisa dipanggil langsung dari direktori mana saja. 
-
-Jalankan perintah berikut:
-```bash
-source ~/.bashrc
-```
-Setelah itu, Anda bisa langsung memeriksa apakah aplikasi sudah siap digunakan dengan mengetik:
-```bash
-nxc --help
-```
 
 ---
 
 ## ⚖️ Lisensi
 
-Proyek ini dilisensikan di bawah **MIT License**. Anda bebas menggunakan, memodifikasi, dan mendistribusikan ulang script ini. Lihat berkas `LICENSE` untuk informasi lebih lanjut.
-
-## 🤝 Kontribusi
-
-Kontribusi selalu terbuka untuk siapa saja! Jika Anda menemukan kutu (*bug*), ingin menambahkan fitur baru, atau memperbaiki dokumentasi, silakan ajukan *Pull Request* atau buka bagian *Issues*.
+Proyek ini dilisensikan di bawah **MIT License**.
