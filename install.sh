@@ -1,26 +1,32 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# NX_CODE - Instant Bootstrap Installer
+# ==============================================================================
 
-echo "🚀 Memulai instalasi awal CLI Ubuntu untuk nxcode123..."
+set -e
 
-# 1. Update package manager termux/ubuntu dan install alat yang dibutuhkan
-echo "📦 Menginstal dependensi dasar (curl, git)..."
-apt update && apt upgrade -y
-apt install curl git proot-distro -y
+NX_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
+LOCAL_SCRIPT="$HOME/nx_code.sh"
 
-# 2. Pastikan Ubuntu PRoot terpasang (jika belum ada)
-if [ ! -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
-    echo "🐧 Menginstal distribusi Ubuntu PRoot..."
-    proot-distro install ubuntu
+echo -e "\033[1;95m======================================================\033[0m"
+echo -e "\033[1;36m       🚀 NX_CODE BOOTSTRAP INSTALLER                \033[0m"
+echo -e "\033[1;95m======================================================\033[0m"
+
+# 1. Update paket & instal dependensi awal
+echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-distro)...\033[0m"
+pkg update -y -o Dpkg::Options::="--force-confold" || true
+pkg install -y -o Dpkg::Options::="--force-confold" curl git proot-distro pulseaudio coreutils
+
+# 2. Download / salin nx_code.sh ke direktori HOME
+echo -e "\n\033[0;36m[➔] Mengunduh skrip inti NX_CODE...\033[0m"
+if [ -f "./nx_code.sh" ]; then
+    cp "./nx_code.sh" "$LOCAL_SCRIPT"
+else
+    curl -fsSL --connect-timeout 10 --max-time 30 "$NX_REPO_RAW_URL" -o "$LOCAL_SCRIPT"
 fi
 
-# 3. Mengunduh file update.sh utama dari repository Anda ke dalam sistem
-echo "📥 Mengunduh konfigurasi tampilan dari GitHub..."
-curl -s https://raw.githubusercontent.com/nxcode123/nx_code/main/update.sh -o ~/.update_theme.sh
+chmod +x "$LOCAL_SCRIPT"
 
-# 4. Jalankan skrip update untuk menerapkan tema dan logo ke ~/.bashrc
-if [ -f ~/.update_theme.sh ]; then
-    bash ~/.update_theme.sh
-    rm ~/.update_theme.sh
-fi
-
-echo "✨ Instalasi selesai! Silakan restart Termux atau masuk ulang ke Ubuntu."
+# 3. Jalankan nx_code.sh untuk memulai inisialisasi lingkungan
+echo -e "\n\033[1;32m[✔] Skrip inti berhasil disiapkan. Menjalankan konfigurasi sistem...\033[0m\n"
+exec bash "$LOCAL_SCRIPT" "$@"
