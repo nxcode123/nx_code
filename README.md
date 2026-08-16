@@ -62,40 +62,8 @@ Buka aplikasi **Termux** Anda, lalu salin dan jalankan perintah satu baris di ba
 bash <(curl -fsSL https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh)
 ```
 
-> [!TIP]
-> Skrip akan otomatis mengunduh dependensi (PRoot, X11 repository, PulseAudio, Ubuntu RootFS), mengonfigurasi pengguna non-root (`nxuser`), dan memasang profil auto-startup ke `~/.bashrc`.
-
----
-
-## 🛠️ Fitur & Keunggulan Utama
-
-* 🖥️ **Ubuntu Desktop XFCE4 Instan**: Menjalankan lingkungan desktop lengkap dengan akselerasi tampilan melalui Termux:X11 dan pemilihan resolusi dinamis (*Custom* / *Native*).
-* 🔊 **Audio Forwarding Terintegrasi (PulseAudio)**: Mendukung pemutaran audio dari browser/aplikasi Linux langsung ke speaker Android.
-* 🛡️ **Penanganan Otomatis Sandbox Electron & Chromium**: Perbaikan bawaan untuk menjalankan VS Code, Discord, dan Chromium di Android PRoot tanpa kendala perizinan *user namespace*.
-* 🎨 **Sistem Tema Dinamis**: Mendukung berbagai palet warna futuristik (*Cyberpunk, Matrix, Dracula, Synthwave, Oceanic, Monokai, dll.*) yang dapat diganti secara langsung via menu.
-* 🔄 **Live System Updates**: Fitur pengecekan pembaruan otomatis dari repositori resmi tanpa menghapus pengaturan Anda.
-* 🧹 **Auto-Maintenance & Storage Cleanup**: Pembersihan berkas cache/tmp berkala untuk menghemat penyimpanan internal ponsel.
-
----
-
-## 🎮 Pintasan Kendali (Control Center)
-
 Setelah terpasang, Anda dapat membuka pusat kendali kapan saja di terminal Termux dengan mengetik:
 
 ```bash
 nx-menu
 ```
-
-Pilihan menu yang tersedia:
-- `[1] Ubuntu CLI Core`: Masuk ke terminal Ubuntu Linux.
-- `[2] Ubuntu GUI (XFCE4 + Audio via Termux:X11)`: Menyalakan server display grafis dan membuka desktop XFCE4.
-- `[3] Kill Active GUI & Audio Session`: Menghentikan seluruh proses X11 dan PulseAudio yang sedang aktif.
-- `[4] Ganti Tema Interface`: Memilih tema warna tampilan terminal.
-- `[5] Check for System Updates`: Memeriksa dan menerapkan patch skrip terbaru.
-
----
-
-## 📜 Lisensi & Penghargaan
-
-Proyek ini dirilis di bawah lisensi [MIT License](LICENSE).  
-Lihat [Credits.md](Credits.md) untuk daftar lengkap kontributor dan pustaka open-source yang digunakan.
