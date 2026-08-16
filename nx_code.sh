@@ -177,10 +177,7 @@ execute_task() {
 # ==============================================================================
 # [3] AUDIO & SYSTEM CHECKERS
 # ==============================================================================
-is_ubuntu_installed() { proot-distro login ubuntu -- true >/dev/null 2>&1; }
 is_termux_x11_installed() { command -v termux-x11 >/dev/null 2>&1; }
-is_xfce4_installed() { proot-distro login ubuntu -- bash -c "command -v startxfce4" >/dev/null 2>&1; }
-is_nonroot_user_setup() { proot-distro login ubuntu -- bash -c "id $NX_USER" >/dev/null 2>&1; }
 is_storage_setup() { [ -d "$HOME/storage/shared" ]; }
 is_mc_installed() { command -v mc >/dev/null 2>&1; }
 
@@ -192,6 +189,20 @@ ensure_storage_setup() {
         sleep 2
     fi
 }
+
+# Wrapper: semua akses ke Ubuntu lewat sini, agar folder storage HP
+# (/storage/shared) otomatis ikut terhubung (bind-mount) ke dalam Ubuntu.
+ubuntu_login() {
+    local bind_args=()
+    if is_storage_setup; then
+        bind_args=(--bind "$HOME/storage/shared:/storage/shared")
+    fi
+    proot-distro login ubuntu "${bind_args[@]}" "$@"
+}
+
+is_ubuntu_installed() { ubuntu_login -- true >/dev/null 2>&1; }
+is_xfce4_installed() { ubuntu_login -- bash -c "command -v startxfce4" >/dev/null 2>&1; }
+is_nonroot_user_setup() { ubuntu_login -- bash -c "id $NX_USER" >/dev/null 2>&1; }
 
 start_pulseaudio() {
     if command -v pulseaudio >/dev/null 2>&1; then
@@ -209,14 +220,14 @@ stop_pulseaudio() {
 # [4] GUI MANAGEMENT & SETTINGS
 # ==============================================================================
 setup_nonroot_user() {
-    proot-distro login ubuntu -- bash -c "
+    ubuntu_login -- bash -c "
         if ! id $NX_USER >/dev/null 2>&1; then
             useradd -m -s /bin/bash $NX_USER 2>/dev/null
         fi
         usermod -aG sudo,audio,video $NX_USER 2>/dev/null || true
         echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
         chmod 0440 /etc/sudoers.d/$NX_USER
-        mkdir -p /storage && chmod 777 /storage
+        mkdir -p /storage/shared && chmod -R 777 /storage
 
         # Pasang bantuan nx-menu di dalam lingkungan Ubuntu
         cat > /usr/local/bin/nx-menu << 'EOF_NX_UBUNTU'
@@ -328,7 +339,7 @@ choose_resolution() {
 }
 
 write_gui_startup_script() {
-    proot-distro login ubuntu -- bash -c "cat > /usr/local/bin/nx-gui-startup.sh" << EOF
+    ubuntu_login -- bash -c "cat > /usr/local/bin/nx-gui-startup.sh" << EOF
 #!/bin/bash
 export DISPLAY=:2
 export PULSE_SERVER=127.0.0.1
@@ -359,7 +370,7 @@ fi
 
 dbus-launch --exit-with-session startxfce4
 EOF
-    proot-distro login ubuntu -- bash -c "chmod 755 /usr/local/bin/nx-gui-startup.sh"
+    ubuntu_login -- bash -c "chmod 755 /usr/local/bin/nx-gui-startup.sh"
 }
 
 launch_ubuntu_gui() {
@@ -368,9 +379,11 @@ launch_ubuntu_gui() {
         return 1
     fi
 
+    ensure_storage_setup
+
     if ! is_xfce4_installed; then
         echo -e "\n${PURPLE}[SYS] XFCE4 belum terdeteksi. Memulai instalasi lingkungan desktop...${NC}"
-        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils pavucontrol libasound2-plugins alsa-utils sound-theme-freedesktop mc -y"
+        execute_task "Instalasi XFCE4" ubuntu_login -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils pavucontrol libasound2-plugins alsa-utils sound-theme-freedesktop mc -y"
 
         if ! is_xfce4_installed; then
             echo -e "${NEON_PINK}[ERR] Instalasi XFCE4 gagal. Periksa koneksi internet.${NC}"
@@ -378,8 +391,8 @@ launch_ubuntu_gui() {
         fi
     fi
 
-    if ! proot-distro login ubuntu -- bash -c "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]" >/dev/null 2>&1; then
-        proot-distro login ubuntu -- bash -c "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png" 2>/dev/null
+    if ! ubuntu_login -- bash -c "[ -f /usr/share/xfce4/backdrops/xubuntu-wallpaper.png ]" >/dev/null 2>&1; then
+        ubuntu_login -- bash -c "mkdir -p /usr/share/xfce4/backdrops && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 -d > /usr/share/xfce4/backdrops/xubuntu-wallpaper.png" 2>/dev/null
     fi
 
     if ! is_nonroot_user_setup; then
@@ -400,11 +413,14 @@ launch_ubuntu_gui() {
     local launch_user="--user $NX_USER"
     ! is_nonroot_user_setup && launch_user=""
 
+    local storage_bind=""
+    is_storage_setup && storage_bind="--bind $HOME/storage/shared:/storage/shared"
+
     cat > "$HOME/.nx_x11_launch.sh" << WRAPEOF
 #!/data/data/com.termux/files/usr/bin/bash
 export PULSE_SERVER=127.0.0.1
 export XDG_RUNTIME_DIR="\${TMPDIR:-/data/data/com.termux/files/usr/tmp}"
-proot-distro login ubuntu --shared-tmp $launch_user -- bash /usr/local/bin/nx-gui-startup.sh
+proot-distro login ubuntu --shared-tmp $storage_bind $launch_user -- bash /usr/local/bin/nx-gui-startup.sh
 WRAPEOF
     chmod +x "$HOME/.nx_x11_launch.sh"
 
@@ -460,7 +476,7 @@ kill_ubuntu_gui() {
     echo -e "\n${PROCESS} ${CYAN}Menghentikan seluruh proses GUI & Audio yang aktif...${NC}"
     local found=0
     if pkill -f "termux-x11" >/dev/null 2>&1; then found=1; fi
-    if proot-distro login ubuntu -- bash -c "pkill -f 'xfce4|dbus-launch|Xwayland'" >/dev/null 2>&1; then found=1; fi
+    if ubuntu_login -- bash -c "pkill -f 'xfce4|dbus-launch|Xwayland'" >/dev/null 2>&1; then found=1; fi
     stop_pulseaudio
     sleep 1
     if [ "$found" -eq 1 ]; then
@@ -683,22 +699,22 @@ launch_midnight_commander() {
                     continue
                 fi
                 local has_ubuntu_mc
-                has_ubuntu_mc=$(proot-distro login ubuntu -- bash -c "command -v mc" 2>/dev/null || true)
+                has_ubuntu_mc=$(ubuntu_login -- bash -c "command -v mc" 2>/dev/null || true)
                 if [ -z "$has_ubuntu_mc" ]; then
                     echo -e "\n${PURPLE}[SYS] Midnight Commander belum terinstal di Ubuntu.${NC}"
-                    execute_task "Instalasi MC Ubuntu" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
+                    execute_task "Instalasi MC Ubuntu" ubuntu_login -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
                 fi
                 echo -e "\n${PROCESS} ${CYAN}Membuka Midnight Commander (Ubuntu)...${NC}"
                 sleep 0.5
                 local mc_user="--user $NX_USER"
                 ! is_nonroot_user_setup && mc_user=""
-                proot-distro login ubuntu $mc_user -- mc
+                ubuntu_login $mc_user -- mc
                 ;;
             3)
                 echo -e "\n${PROCESS} ${CYAN}Memperbarui & memasang Midnight Commander...${NC}"
                 execute_task "Update MC di Termux" pkg install mc -y -o Dpkg::Options::="--force-confold"
                 if is_ubuntu_installed; then
-                    execute_task "Update MC di Ubuntu" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
+                    execute_task "Update MC di Ubuntu" ubuntu_login -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
                 fi
                 echo -e "${SUCCESS} ${WHITE}Pemasangan / Pembaruan MC selesai.${NC}"
                 sleep 1.5
@@ -736,11 +752,12 @@ show_shortcut_menu() {
             1)
                 echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI & Audio Bridge...${NC}"
                 start_pulseaudio
+                ensure_storage_setup
                 sleep 0.5
                 if is_ubuntu_installed; then
                     local cli_user="--user $NX_USER"
                     ! is_nonroot_user_setup && cli_user=""
-                    proot-distro login ubuntu $cli_user
+                    ubuntu_login $cli_user
                 else
                     echo -e "${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
                     sleep 1.5
