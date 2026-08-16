@@ -1,91 +1,104 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# PROJECT     : NX_CODE
+# FILE        : nxc.sh
+# DESCRIPTION : Fast Lightweight Termux-Ubuntu Bridge & Installer
+# VERSION     : 1.3.1
+# ==============================================================================
 
-GREEN='\033[0;32m'
 CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${CYAN}[*] Memulai proses instalasi otomatis NXC...${NC}"
-
-# 1. Update Termux dan instal dependensi dasar (git & proot-distro)
-echo -e "${GREEN}[+] Memperbarui Termux & menginstal dependensi...${NC}"
-termux-setup-storage -y &>/dev/null
-pkg update -y
-pkg install git proot-distro -y
-
-# 2. Install Proot Ubuntu otomatis
-echo -e "${GREEN}[+] Menginstal Ubuntu via Proot-Distro...${NC}"
-proot-distro install ubuntu
-
-# 3. Mengunduh nxc1.sh langsung ke dalam root Ubuntu menggunakan jalur direktori yang benar (installed-rootfs)
-echo -e "${GREEN}[+] Mengunduh nxc1.sh ke dalam Ubuntu...${NC}"
-UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root"
-a#!/bin/bash
-
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-echo -e "${CYAN}[*] Memulai proses instalasi otomatis NXC...${NC}"
-
-# 1. Update Termux dan instal dependensi dasar
-echo -e "${GREEN}[+] Memperbarui Termux & menginstal dependensi...${NC}"
-termux-setup-storage -y &>/dev/null
-pkg update -y
-pkg install git proot-distro -y
-
-# 2. Install Proot Ubuntu otomatis
-echo -e "${GREEN}[+] Menginstal Ubuntu via Proot-Distro...${NC}"
-proot-distro remove ubuntu &>/dev/null
-proot-distro install ubuntu
-
-# 3. Definisikan path root Ubuntu di Termux
-UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root"
-
-# 4. Buat folder /root di dalam Ubuntu secara paksa jika belum ada, lalu unduh nxc1.sh
-echo -e "${GREEN}[+] Mengunduh nxc1.sh langsung ke dalam Ubuntu...${NC}"
-mkdir -p "$UBUNTU_ROOT"
-curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/nxc1.sh"
-chmod +x "$UBUNTU_ROOT/nxc1.sh"
-
-# 5. Pasang otomatisasi agar nxc1.sh jalan otomatis setiap masuk Ubuntu
-echo -e "${GREEN}[+] Mengatur agar nxc1.sh berjalan otomatis saat masuk Ubuntu...${NC}"
-UBUNTU_BASHRC="$UBUNTU_ROOT/.bashrc"
-if ! grep -q "nxc1.sh" "$UBUNTU_BASHRC"; then
-    echo -e "\n# Jalankan nxc1 otomatis\n/root/nxc1.sh" >> "$UBUNTU_BASHRC"
+# Guard: Memastikan script berjalan di Termux
+if [ ! -d "/data/data/com.termux" ]; then
+    echo -e "${RED}[!] Error: Skrip ini dirancang khusus untuk dijalankan di lingkungan Termux!${NC}"
+    exit 1
 fi
 
-# 6. Atur Termux agar langsung masuk Ubuntu saat dibuka
-echo -e "${GREEN}[+] Mengatur Termux agar langsung masuk Ubuntu...${NC}"
+echo -e "${CYAN}==============================================${NC}"
+echo -e "${GREEN} [*] NX_CODE: Termux-Ubuntu Automated Setup${NC}"
+echo -e "${CYAN}==============================================${NC}\n"
+
+# 1. Hubungkan Penyimpanan Android
+echo -e "${CYAN}[1/5]${NC} Menghubungkan penyimpanan internal..."
+if [ ! -d "$HOME/storage" ]; then
+    termux-setup-storage
+fi
+
+# 2. Update & Pasang Dependensi Inti
+echo -e "${CYAN}[2/5]${NC} Memeriksa dependensi Termux (git, curl, proot-distro)..."
+export DEBIAN_FRONTEND=noninteractive
+pkg update -y >/dev/null 2>&1
+for pkg in git curl proot-distro; do
+    if ! command -v "$pkg" &>/dev/null; then
+        echo -e "      ${YELLOW}Menginstal $pkg...${NC}"
+        pkg install "$pkg" -y >/dev/null 2>&1
+    fi
+done
+
+# 3. Pasang Distribusi Ubuntu jika belum ada
+echo -e "${CYAN}[3/5]${NC} Memeriksa sistem Ubuntu PRoot..."
+UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
+if [ ! -d "$UBUNTU_ROOT" ]; then
+    echo -e "      ${YELLOW}Menginstal Ubuntu (proses awal)...${NC}"
+    proot-distro install ubuntu
+else
+    echo -e "      ${GREEN}[✔] Ubuntu rootfs sudah terpasang.${NC}"
+fi
+
+# 4. Sinkronisasi Skrip dan Direktori Menu ke Ubuntu
+echo -e "${CYAN}[4/5]${NC} Menyiapkan modul dan antarmuka NX_CODE di dalam Ubuntu..."
+mkdir -p "$UBUNTU_ROOT/root/themes"
+
+# Unduh nxc1.sh, nxc_lib.sh, dan themes
+BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main"
+curl -fsSL "$BASE_URL/nxc1.sh" -o "$UBUNTU_ROOT/root/nxc1.sh" 2>/dev/null || true
+curl -fsSL "$BASE_URL/nxc_lib.sh" -o "$UBUNTU_ROOT/root/nxc_lib.sh" 2>/dev/null || true
+curl -fsSL "$BASE_URL/themes/theme.list" -o "$UBUNTU_ROOT/root/themes/theme.list" 2>/dev/null || true
+curl -fsSL "$BASE_URL/themes/cyberpunk.sh" -o "$UBUNTU_ROOT/root/themes/cyberpunk.sh" 2>/dev/null || true
+
+# Salin berkas lokal jika instalasi dijalankan dari folder lokal
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/nxc1.sh" ]; then
+    cp "$SCRIPT_DIR/nxc1.sh" "$UBUNTU_ROOT/root/nxc1.sh"
+fi
+if [ -f "$SCRIPT_DIR/nxc_lib.sh" ]; then
+    cp "$SCRIPT_DIR/nxc_lib.sh" "$UBUNTU_ROOT/root/nxc_lib.sh"
+fi
+if [ -d "$SCRIPT_DIR/themes" ]; then
+    cp -r "$SCRIPT_DIR/themes/"* "$UBUNTU_ROOT/root/themes/" 2>/dev/null || true
+fi
+
+chmod +x "$UBUNTU_ROOT/root/nxc1.sh" 2>/dev/null || true
+chmod +x "$UBUNTU_ROOT/root/nxc_lib.sh" 2>/dev/null || true
+
+# 5. Konfigurasi .bashrc Ubuntu & Termux
+echo -e "${CYAN}[5/5]${NC} Mengonfigurasi pintasan (.bashrc)..."
+UBUNTU_BASHRC="$UBUNTU_ROOT/root/.bashrc"
+if [ -f "$UBUNTU_BASHRC" ]; then
+    if ! grep -q "alias menu=" "$UBUNTU_BASHRC"; then
+        echo -e "\n# Alias pintasan menu NX_CODE\nalias menu='bash /root/nxc1.sh'\nalias nx-menu='bash /root/nxc1.sh'" >> "$UBUNTU_BASHRC"
+    fi
+    if ! grep -q "bash /root/nxc1.sh" "$UBUNTU_BASHRC"; then
+        echo -e "if [ -f \"/root/nxc1.sh\" ]; then bash /root/nxc1.sh; fi" >> "$UBUNTU_BASHRC"
+    fi
+fi
+
+# Konfigurasi Termux .bashrc
 TERMUX_BASHRC="$HOME/.bashrc"
-if ! grep -q "proot-distro login ubuntu" "$TERMUX_BASHRC"; then
-    echo -e "\n# Langsung masuk Ubuntu saat Termux dibuka\nproot-distro login ubuntu" >> "$TERMUX_BASHRC"
-fi
-
-# 7. Hapus pesan default awal Termux (MOTD)
-echo -e "${GREEN}[+] Menghapus pesan default awal Termux...${NC}"
 touch "$HOME/.hushlogin"
-
-echo -e "${CYAN}[*] Instalasi Selesai! Silakan tutup total Termux dan buka kembali untuk melihat hasilnya secara otomatis.${NC}"
-mkdir -p "$UBUNTU_ROOT"
-curl -s -L "https://raw.githubusercontent.com/nxcode123/nx_code/main/nxc1.sh" -o "$UBUNTU_ROOT/nxc1.sh"
-chmod +x "$UBUNTU_ROOT/nxc1.sh"
-
-# 4. Buat otomatis menjalankan nxc1.sh setiap masuk Ubuntu (.bashrc Ubuntu)
-echo -e "${GREEN}[+] Mengatur agar nxc1.sh berjalan otomatis saat masuk Ubuntu...${NC}"
-UBUNTU_BASHRC="$UBUNTU_ROOT/.bashrc"
-if ! grep -q "nxc1.sh" "$UBUNTU_BASHRC"; then
-    echo -e "\n# Jalankan nxc1 otomatis\n/root/nxc1.sh" >> "$UBUNTU_BASHRC"
-fi
-
-# 5. Buat agar saat masuk Termux langsung melompat ke Ubuntu
-echo -e "${GREEN}[+] Mengatur Termux agar langsung masuk Ubuntu...${NC}"
-TERMUX_BASHRC="$HOME/.bashrc"
 if ! grep -q "proot-distro login ubuntu" "$TERMUX_BASHRC"; then
-    echo -e "\n# Langsung masuk Ubuntu saat Termux dibuka\nproot-distro login ubuntu" >> "$TERMUX_BASHRC"
+    cat << 'EOF' >> "$TERMUX_BASHRC"
+
+# Masuk otomatis ke Ubuntu PRoot jika bukan sub-session
+if [ -z "$PROOT_DISTRO_EDITION" ] && [ "$TERMUX_CATCH" != "true" ]; then
+    exec proot-distro login ubuntu
+fi
+EOF
 fi
 
-# 6. Hapus pesan default awal Termux (MOTD)
-echo -e "${GREEN}[+] Menghapus pesan default awal Termux...${NC}"
-touch "$HOME/.hushlogin"
-
-echo -e "${CYAN}[*] Instalasi Selesai! Silakan restart Termux Anda.${NC}"
+echo -e "\n${GREEN}[✔] Instalasi dan konfigurasi berhasil diselesaikan!${NC}"
+echo -e "${YELLOW}Ketik 'menu' di dalam Ubuntu kapan saja untuk membuka pusat kendali.${NC}\n"

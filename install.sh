@@ -1,26 +1,61 @@
-#!/bin/bash
+#!/data/data/com.termux/files/usr/bin/bash
+# ==============================================================================
+# PROJECT     : NX_CODE
+# FILE        : install.sh
+# DESCRIPTION : One-line Automatic Installer for Termux
+# VERSION     : 1.3.1
+# ==============================================================================
 
-echo "🚀 Memulai instalasi awal CLI Ubuntu untuk nxcode123..."
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# 1. Update package manager termux/ubuntu dan install alat yang dibutuhkan
-echo "📦 Menginstal dependensi dasar (curl, git)..."
-apt update && apt upgrade -y
-apt install curl git proot-distro -y
+clear
+echo -e "${CYAN}======================================================${NC}"
+echo -e "${GREEN}  🚀 Memulai Instalasi Otomatis NX_CODE untuk Termux   ${NC}"
+echo -e "${CYAN}======================================================${NC}\n"
 
-# 2. Pastikan Ubuntu PRoot terpasang (jika belum ada)
-if [ ! -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
-    echo "🐧 Menginstal distribusi Ubuntu PRoot..."
+# 1. Guard: Pastikan berjalan di Termux
+if [ ! -d "/data/data/com.termux" ]; then
+    echo -e "${RED}[!] Error: Skrip ini dirancang khusus untuk dijalankan di Termux Android!${NC}"
+    exit 1
+fi
+
+# 2. Hubungkan Storage Android
+if [ ! -d "$HOME/storage" ]; then
+    echo -e "${CYAN}[*] Menghubungkan penyimpanan internal Android...${NC}"
+    termux-setup-storage
+fi
+
+# 3. Update package manager & install dependensi
+echo -e "${CYAN}[*] Memperbarui repositori dan memasang dependensi (curl, git, proot-distro)...${NC}"
+export DEBIAN_FRONTEND=noninteractive
+pkg update -y >/dev/null 2>&1
+pkg install curl git proot-distro -y >/dev/null 2>&1
+
+# 4. Pastikan Ubuntu PRoot terpasang
+UBUNTU_ROOT="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
+if [ ! -d "$UBUNTU_ROOT" ]; then
+    echo -e "${CYAN}[*] Mengunduh dan memasang distribusi Ubuntu PRoot...${NC}"
     proot-distro install ubuntu
+else
+    echo -e "${GREEN}[✔] Sistem Ubuntu PRoot sudah terpasang.${NC}"
 fi
 
-# 3. Mengunduh file update.sh utama dari repository Anda ke dalam sistem
-echo "📥 Mengunduh konfigurasi tampilan dari GitHub..."
-curl -s https://raw.githubusercontent.com/nxcode123/nx_code/main/update.sh -o ~/.update_theme.sh
+# 5. Jalankan skrip setup utama nx_code.sh dari GitHub
+echo -e "${CYAN}[*] Mengunduh konfigurasi utama NX_CODE dari GitHub...${NC}"
+SETUP_FILE="$HOME/nx_code.sh"
+GITHUB_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 
-# 4. Jalankan skrip update untuk menerapkan tema dan logo ke ~/.bashrc
-if [ -f ~/.update_theme.sh ]; then
-    bash ~/.update_theme.sh
-    rm ~/.update_theme.sh
+if curl -fsSL --max-time 15 "$GITHUB_URL" -o "$SETUP_FILE"; then
+    chmod +x "$SETUP_FILE"
+    echo -e "${GREEN}[✔] Menjalankan proses inisialisasi lingkungan...${NC}\n"
+    bash "$SETUP_FILE"
+else
+    echo -e "${RED}[!] Gagal mengunduh nx_code.sh dari GitHub. Menjalankan fallback lokal...${NC}"
+    if [ -f "./nx_code.sh" ]; then
+        bash "./nx_code.sh"
+    fi
 fi
-
-echo "✨ Instalasi selesai! Silakan restart Termux atau masuk ulang ke Ubuntu."
