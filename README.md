@@ -14,7 +14,7 @@ NetExec adalah alat bantu penetrasi jaringan modern (penerus CrackMapExec) yang 
 * **🔄 Auto-System Update**: Memperbarui core paket sistem dan repositori Termux ke versi terbaru secara otomatis.
 * **⚡ Smart Upgrade**: Mendeteksi keberadaan instalasi NetExec di perangkat Anda dan memperbaruinya langsung dari *source code* resmi GitHub menggunakan `pipx` atau `pip`.
 * **📥 Auto-Installer**: Jika NetExec belum terdeteksi di sistem, script akan otomatis menawarkan instalasi instan lengkap beserta seluruh dependensi Python, Git, OpenSSL, dan compiler Clang.
-* **🧹 System Optimization**: Menjalankan perintah pembersihan otomatis (`autoclean`) untuk menghemat ruang penyimpanan penyimpanan perangkat Anda setelah proses pembaruan selesai.
+* **🧹 System Optimization**: Menjalankan perintah pembersihan otomatis (`autoclean`) untuk menghemat ruang penyimpanan perangkat Anda setelah proses pembaruan selesai.
 
 ---
 
@@ -22,17 +22,15 @@ NetExec adalah alat bantu penetrasi jaringan modern (penerus CrackMapExec) yang 
 
 Buka aplikasi Termux Anda, cukup salin dan tempel salah satu perintah di bawah ini untuk mengunduh dan mengeksekusi script secara otomatis:
 
-### Pilihan A: Menggunakan `curl` (Direkomendasikan)
+### Pilihan A: Menggunakan `wget` (Direkomendasikan)
 ```bash
-curl -sLk https://githubusercontent.com -o nxc.sh && chmod +x nxc.sh && ./nxc.sh
+pkg install wget -y && wget -qO nxc.sh https://githubusercontent.com && chmod +x nxc.sh && ./nxc.sh
 ```
 
-### Pilihan B: Menggunakan `wget`
+### Pilihan B: Menggunakan `curl`
 ```bash
-wget -qO nxc.sh https://githubusercontent.com && chmod +x nxc.sh && ./nxc.sh
+pkg install curl -y && curl -sLk https://githubusercontent.com -o nxc.sh && chmod +x nxc.sh && ./nxc.sh
 ```
-
-> ⚠️ **PENTING**: Jangan lupa untuk mengubah `USERNAME_ANDA` dan `NAMA_REPOSITORI_ANDA` pada perintah di atas sesuai dengan detail akun GitHub Anda sebelum membagikannya.
 
 ---
 
@@ -46,7 +44,7 @@ Jika Anda lebih memilih untuk mengkloning repositori ini secara manual, ikuti la
    ```
 2. Masuk ke dalam direktori proyek:
    ```bash
-   cd NAMA_REPOSITORI_ANDA
+   cd nx_code
    ```
 3. Berikan izin akses eksekusi pada script:
    ```bash
