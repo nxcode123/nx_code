@@ -199,13 +199,14 @@ ensure_storage_setup() {
 
 start_pulseaudio() {
     if command -v pulseaudio >/dev/null 2>&1; then
-        pkill -f "pulseaudio" >/dev/null 2>&1
-        pulseaudio --start --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1" --exit-idle-time=-1 >/dev/null 2>&1
+        pkill -f "pulseaudio" >/dev/null 2>&1 || true
+        sleep 0.3
+        pulseaudio --start --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1" --exit-idle-time=-1 >/dev/null 2>&1 || true
     fi
 }
 
 stop_pulseaudio() {
-    pkill -f "pulseaudio" >/dev/null 2>&1
+    pkill -f "pulseaudio" >/dev/null 2>&1 || true
 }
 
 # ==============================================================================
@@ -216,6 +217,7 @@ setup_nonroot_user() {
         if ! id $NX_USER >/dev/null 2>&1; then
             useradd -m -s /bin/bash $NX_USER 2>/dev/null
         fi
+        usermod -aG sudo,audio,video $NX_USER 2>/dev/null || true
         echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
         chmod 0440 /etc/sudoers.d/$NX_USER
         mkdir -p /storage && chmod 777 /storage
@@ -231,6 +233,56 @@ echo -e \"\033[0;36m[➔] Untuk kembali ke Termux dan membuka Control Center:\03
 echo -e \"    Ketik \033[1;32mexit\033[0m lalu jalankan \033[1;36mnx-menu\033[0m di Termux.\n\"
 EOF_NX_UBUNTU
         chmod 755 /usr/local/bin/nx-menu
+
+        # Konfigurasi PulseAudio client (cegah autospawn server di PRoot & hubungkan ke Termux)
+        mkdir -p /etc/pulse
+        cat > /etc/pulse/client.conf << 'EOF_PULSE_CLIENT'
+default-server = 127.0.0.1
+autospawn = no
+EOF_PULSE_CLIENT
+        chmod 644 /etc/pulse/client.conf 2>/dev/null
+
+        # Konfigurasi ALSA to PulseAudio bridge
+        cat > /etc/asound.conf << 'EOF_ASOUND'
+pcm.!default {
+    type pulse
+    fallback "sysdefault"
+}
+
+ctl.!default {
+    type pulse
+    fallback "sysdefault"
+}
+EOF_ASOUND
+        chmod 644 /etc/asound.conf 2>/dev/null
+
+        # Script test audio untuk kemudahan pengujian dari terminal Ubuntu
+        cat > /usr/local/bin/nx-audio-test << 'EOF_AUDIO_TEST'
+#!/bin/bash
+echo -e \"\033[0;36m[➔] Menguji koneksi audio PulseAudio ke Termux...\033[0m\"
+export PULSE_SERVER=127.0.0.1
+if command -v pactl >/dev/null 2>&1; then
+    if pactl info >/dev/null 2>&1; then
+        echo -e \"\033[1;32m[✔] Server PulseAudio terdeteksi dan terhubung!\033[0m\"
+        echo -e \"\033[0;35m    Server String : \033[1;37m\$(pactl info 2>/dev/null | grep 'Server String' | cut -d: -f2-)\033[0m\"
+        echo -e \"\033[0;35m    Default Sink  : \033[1;37m\$(pactl info 2>/dev/null | grep 'Default Sink' | cut -d: -f2-)\033[0m\"
+        if command -v paplay >/dev/null 2>&1 && [ -f /usr/share/sounds/freedesktop/stereo/complete.oga ]; then
+            echo -e \"\033[0;36m[➔] Memutar suara uji coba (paplay)...\033[0m\"
+            paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true
+        elif command -v speaker-test >/dev/null 2>&1; then
+            echo -e \"\033[0;36m[➔] Memutar nada uji coba 1 detik (speaker-test)...\033[0m\"
+            speaker-test -t sine -f 440 -l 1 >/dev/null 2>&1 || true
+        fi
+        echo -e \"\033[1;32m[✔] Pengujian audio selesai.\033[0m\"
+    else
+        echo -e \"\033[1;91m[✘] Tidak dapat terhubung ke PulseAudio server (127.0.0.1:4713).\033[0m\"
+        echo -e \"\033[1;33m    Pastikan PulseAudio aktif di Termux dengan menjalankan nx-menu.\033[0m\"
+    fi
+else
+    echo -e \"\033[1;33m[!] pulseaudio-utils belum terinstal. Jalankan: sudo apt install pulseaudio-utils\033[0m\"
+fi
+EOF_AUDIO_TEST
+        chmod 755 /usr/local/bin/nx-audio-test
 
         # Konfigurasi Lingkungan Global PRoot (Fix Electron Sandbox, Audio, & AT-SPI D-Bus)
         cat > /etc/profile.d/nx_environment.sh << 'EOF_ENV'
@@ -322,7 +374,7 @@ launch_ubuntu_gui() {
 
     if ! is_xfce4_installed; then
         echo -e "\n${PURPLE}[SYS] XFCE4 belum terdeteksi. Memulai instalasi lingkungan desktop...${NC}"
-        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils -y"
+        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils pavucontrol libasound2-plugins alsa-utils sound-theme-freedesktop -y"
 
         if ! is_xfce4_installed; then
             echo -e "${NEON_PINK}[ERR] Instalasi XFCE4 gagal. Periksa koneksi internet.${NC}"
@@ -576,7 +628,8 @@ show_shortcut_menu() {
 
         case "$pilihan" in
             1)
-                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI...${NC}"
+                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI & Audio Bridge...${NC}"
+                start_pulseaudio
                 sleep 0.5
                 if is_ubuntu_installed; then
                     local cli_user="--user $NX_USER"

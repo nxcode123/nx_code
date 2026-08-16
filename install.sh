@@ -13,7 +13,7 @@ echo -e "\033[1;36m       🚀 NX_CODE BOOTSTRAP INSTALLER                \033[0
 echo -e "\033[1;95m======================================================\033[0m"
 
 # 1. Update paket & instal dependensi awal
-echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-distro)...\033[0m"
+echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-distro, pulseaudio)...\033[0m"
 pkg update -y -o Dpkg::Options::="--force-confold" || true
 pkg install -y -o Dpkg::Options::="--force-confold" curl git proot-distro pulseaudio coreutils
 
