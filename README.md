@@ -92,7 +92,6 @@ Pilihan menu yang tersedia:
 - `[3] Kill Active GUI & Audio Session`: Menghentikan seluruh proses X11 dan PulseAudio yang sedang aktif.
 - `[4] Ganti Tema Interface`: Memilih tema warna tampilan terminal.
 - `[5] Check for System Updates`: Memeriksa dan menerapkan patch skrip terbaru.
-- `[6] Toggle Debug Mode`: Mengaktifkan/menonaktifkan pelacakan eksekusi (*shell trace*).
 
 ---
 

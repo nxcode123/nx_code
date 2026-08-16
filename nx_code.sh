@@ -79,10 +79,7 @@ init_theme_system() {
     mkdir -p "$THEME_DIR" 2>/dev/null
 
     ACTIVE_THEME="cyberpunk"
-    DEBUG_MODE="off"
     [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" 2>/dev/null
-
-    [ "$DEBUG_MODE" == "on" ] && set -x
 
     local theme_file="$THEME_DIR/$ACTIVE_THEME.sh"
 
@@ -459,7 +456,6 @@ change_theme_menu() {
 
             mkdir -p "$THEME_DIR" 2>/dev/null
             echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
-            echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
 
             echo -e "\n${SUCCESS} ${WHITE}Tema aktif diubah ke: ${NEON_PINK}$chosen${NC}"
             sleep 1
@@ -470,21 +466,6 @@ change_theme_menu() {
     done
 }
 
-toggle_debug_mode() {
-    if [ "$DEBUG_MODE" == "on" ]; then
-        DEBUG_MODE="off"
-        set +x
-        echo -e "\n${NEON_PINK}[SYS] Debug Mode dimatikan.${NC}"
-    else
-        DEBUG_MODE="on"
-        set -x
-        echo -e "\n${NEON_GREEN}[SYS] Debug Mode diaktifkan (Trace aktif).${NC}"
-    fi
-
-    echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
-    echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
-    sleep 1.5
-}
 
 # ==============================================================================
 # [5] SYSTEM MANAGEMENT
@@ -587,7 +568,6 @@ show_shortcut_menu() {
         echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI & Audio Session${NC}"
         echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
         echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for System Updates${NC}"
-        echo -e " ${PURPLE}[6]${NC} ${WHITE}Toggle Debug Mode (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
@@ -611,7 +591,6 @@ show_shortcut_menu() {
             3) kill_ubuntu_gui; sleep 1 ;;
             4) change_theme_menu ;;
             5) check_for_update; sleep 1 ;;
-            6) toggle_debug_mode ;;
             0)
                 echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n"
                 break
