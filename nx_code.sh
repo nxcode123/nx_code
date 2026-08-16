@@ -6,7 +6,7 @@
 NX_CODE_REPO_RAW_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh"
 NX_THEMES_MANIFEST_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes/theme.list"
 NX_THEMES_BASE_URL="https://raw.githubusercontent.com/nxcode123/nx_code/main/themes"
-NX_VERSION="v1.2.0"
+NX_VERSION="v1.3.0"
 NX_USER="nxuser"
 
 NX_CURL_OPTS="-fsSL --connect-timeout 5 --max-time 15 --retry 2"
@@ -182,6 +182,7 @@ is_termux_x11_installed() { command -v termux-x11 >/dev/null 2>&1; }
 is_xfce4_installed() { proot-distro login ubuntu -- bash -c "command -v startxfce4" >/dev/null 2>&1; }
 is_nonroot_user_setup() { proot-distro login ubuntu -- bash -c "id $NX_USER" >/dev/null 2>&1; }
 is_storage_setup() { [ -d "$HOME/storage/shared" ]; }
+is_mc_installed() { command -v mc >/dev/null 2>&1; }
 
 ensure_storage_setup() {
     if ! is_storage_setup; then
@@ -369,7 +370,7 @@ launch_ubuntu_gui() {
 
     if ! is_xfce4_installed; then
         echo -e "\n${PURPLE}[SYS] XFCE4 belum terdeteksi. Memulai instalasi lingkungan desktop...${NC}"
-        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils pavucontrol libasound2-plugins alsa-utils sound-theme-freedesktop -y"
+        execute_task "Instalasi XFCE4" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y && DEBIAN_FRONTEND=noninteractive apt install xfce4 xfce4-goodies dbus-x11 x11-xserver-utils sudo tzdata pulseaudio-utils pavucontrol libasound2-plugins alsa-utils sound-theme-freedesktop mc -y"
 
         if ! is_xfce4_installed; then
             echo -e "${NEON_PINK}[ERR] Instalasi XFCE4 gagal. Periksa koneksi internet.${NC}"
@@ -645,6 +646,74 @@ copy_self_to_home() {
 # ==============================================================================
 # [6] ROUTING & MENU
 # ==============================================================================
+launch_midnight_commander() {
+    while true; do
+        animate_logo
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e "${WHITE}          MIDNIGHT COMMANDER (FILE MANAGER)           ${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e " ${PURPLE}[1]${NC} ${WHITE}Buka MC di Termux (Akses Direktori Termux & SDCard)${NC}"
+        echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka MC di Ubuntu OS (Root / User Environment)${NC}"
+        echo -e " ${PURPLE}[3]${NC} ${WHITE}Install / Perbarui Paket MC (Termux & Ubuntu)${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Kembali ke Menu Utama${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
+        read -r mc_choice
+
+        case "$mc_choice" in
+            1)
+                if ! command -v mc >/dev/null 2>&1; then
+                    echo -e "\n${PURPLE}[SYS] Midnight Commander belum terinstal di Termux.${NC}"
+                    execute_task "Instalasi MC Termux" pkg install mc -y -o Dpkg::Options::="--force-confold"
+                fi
+                if command -v mc >/dev/null 2>&1; then
+                    echo -e "\n${PROCESS} ${CYAN}Membuka Midnight Commander (Termux)...${NC}"
+                    sleep 0.5
+                    mc
+                else
+                    echo -e "\n${NEON_PINK}[ERR] Gagal memasang Midnight Commander di Termux.${NC}"
+                    sleep 1.5
+                fi
+                ;;
+            2)
+                if ! is_ubuntu_installed; then
+                    echo -e "\n${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
+                    sleep 1.5
+                    continue
+                fi
+                local has_ubuntu_mc
+                has_ubuntu_mc=$(proot-distro login ubuntu -- bash -c "command -v mc" 2>/dev/null || true)
+                if [ -z "$has_ubuntu_mc" ]; then
+                    echo -e "\n${PURPLE}[SYS] Midnight Commander belum terinstal di Ubuntu.${NC}"
+                    execute_task "Instalasi MC Ubuntu" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
+                fi
+                echo -e "\n${PROCESS} ${CYAN}Membuka Midnight Commander (Ubuntu)...${NC}"
+                sleep 0.5
+                local mc_user="--user $NX_USER"
+                ! is_nonroot_user_setup && mc_user=""
+                proot-distro login ubuntu $mc_user -- mc
+                ;;
+            3)
+                echo -e "\n${PROCESS} ${CYAN}Memperbarui & memasang Midnight Commander...${NC}"
+                execute_task "Update MC di Termux" pkg install mc -y -o Dpkg::Options::="--force-confold"
+                if is_ubuntu_installed; then
+                    execute_task "Update MC di Ubuntu" proot-distro login ubuntu -- bash -c "DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install mc -y"
+                fi
+                echo -e "${SUCCESS} ${WHITE}Pemasangan / Pembaruan MC selesai.${NC}"
+                sleep 1.5
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo -e "\n${NEON_PINK}[!] Pilihan tidak valid, silakan coba lagi.${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
 show_shortcut_menu() {
     while true; do
         animate_logo
@@ -654,8 +723,9 @@ show_shortcut_menu() {
         echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI Core (Terminal Linux)${NC}"
         echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 + Audio via Termux:X11)${NC}"
         echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI & Audio Session${NC}"
-        echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
-        echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for System Updates${NC}"
+        echo -e " ${PURPLE}[4]${NC} ${WHITE}Midnight Commander (MC File Manager)${NC}"
+        echo -e " ${PURPLE}[5]${NC} ${WHITE}Ganti Tema Interface${NC}"
+        echo -e " ${PURPLE}[6]${NC} ${WHITE}Check for System Updates${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
@@ -678,8 +748,9 @@ show_shortcut_menu() {
                 ;;
             2) launch_ubuntu_gui; sleep 1 ;;
             3) kill_ubuntu_gui; sleep 1 ;;
-            4) change_theme_menu ;;
-            5) check_for_update; sleep 1 ;;
+            4) launch_midnight_commander; sleep 1 ;;
+            5) change_theme_menu ;;
+            6) check_for_update; sleep 1 ;;
             0)
                 echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n"
                 break
@@ -696,6 +767,7 @@ show_shortcut_menu() {
 case "$1" in
     --logo-only) animate_logo; exit 0 ;;
     --menu|-m|menu) show_shortcut_menu; exit 0 ;;
+    --mc|mc) launch_midnight_commander; exit 0 ;;
     --ui-only)
         animate_logo
 
@@ -712,6 +784,9 @@ case "$1" in
             echo -e "${NEON_PINK}[X] Storage Not Linked${NC}"
         fi
 
+        echo -ne "${CYAN}[SYS] Midnight Commander... ${NC}"
+        command -v mc >/dev/null 2>&1 && echo -e "${NEON_GREEN}[✔] Ready${NC}" || echo -e "${NEON_PINK}[X] Missing${NC}"
+
         run_auto_cleaner
         echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk membuka control center.${NC}\n"
         exit 0
@@ -720,6 +795,7 @@ case "$1" in
         echo "NX_CODE - Hypervisor GUI & CLI Control"
         echo "Penggunaan: nx-menu [opsi]"
         echo "  --menu, -m      Buka NX_CODE Control Center (Default)"
+        echo "  --mc            Buka Midnight Commander File Manager"
         echo "  --ui-only       Tampilkan ringkasan status sistem"
         echo "  --logo-only     Tampilkan logo banner saja"
         echo "  --help, -h      Tampilkan pesan bantuan ini"
@@ -737,7 +813,7 @@ ensure_storage_setup
 
 execute_task "Updating Repos" pkg update -y -o Dpkg::Options::="--force-confold"
 execute_task "Upgrading Core" pkg upgrade -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploy Hypervisor" pkg install proot-distro pulseaudio coreutils -y -o Dpkg::Options::="--force-confold"
+execute_task "Deploy Hypervisor" pkg install proot-distro pulseaudio coreutils mc -y -o Dpkg::Options::="--force-confold"
 execute_task "Add X11 Repo" pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
 execute_task "Deploy X11 Server" pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
 
@@ -759,6 +835,7 @@ echo ""
 is_ubuntu_installed && echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_PINK}Failed${NC}"
 is_termux_x11_installed && echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Failed${NC}"
 command -v pulseaudio >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_PINK}Failed${NC}"
+command -v mc >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_PINK}Failed${NC}"
 echo ""
 
 if ! copy_self_to_home; then
@@ -776,6 +853,7 @@ alias ls='ls --color=auto --group-directories-first'
 alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 alias nx='bash $HOME/nx_code.sh --menu'
+alias nx-mc='bash $HOME/nx_code.sh --mc'
 PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
 
 clear() { command clear; [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only; }
@@ -815,13 +893,15 @@ echo -e "${NEON_GREEN}           SYSTEM INITIALIZED. NX_CODE ACTIVE.         ${N
 echo -e "${NEON_PINK}======================================================${NC}"
 
 echo -e " ${PURPLE}[1]${NC} ${WHITE}Masuk ke Menu Utama (nx-menu)${NC}"
-echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka Sesi Terminal Baru${NC}"
+echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka Midnight Commander (MC)${NC}"
+echo -e " ${PURPLE}[3]${NC} ${WHITE}Buka Sesi Terminal Baru${NC}"
 echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit${NC}"
 echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
 read -r final_choice
 
 case "$final_choice" in
     1) show_shortcut_menu; exit 0 ;;
-    2) exec bash ;;
+    2) launch_midnight_commander; exit 0 ;;
+    3) exec bash ;;
     *) exit 0 ;;
 esac

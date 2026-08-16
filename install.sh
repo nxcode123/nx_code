@@ -13,9 +13,9 @@ echo -e "\033[1;36m       🚀 NX_CODE BOOTSTRAP INSTALLER                \033[0
 echo -e "\033[1;95m======================================================\033[0m"
 
 # 1. Update paket & instal dependensi awal
-echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-distro, pulseaudio)...\033[0m"
+echo -e "\n\033[0;36m[➔] Mempersiapkan dependensi Termux (curl, git, proot-distro, pulseaudio, mc)...\033[0m"
 pkg update -y -o Dpkg::Options::="--force-confold" || true
-pkg install -y -o Dpkg::Options::="--force-confold" curl git proot-distro pulseaudio coreutils
+pkg install -y -o Dpkg::Options::="--force-confold" curl git proot-distro pulseaudio coreutils mc
 
 # 2. Download / salin nx_code.sh & direktori themes ke direktori HOME
 echo -e "\n\033[0;36m[➔] Menyiapkan modul tema dan skrip inti NX_CODE...\033[0m"

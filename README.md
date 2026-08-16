@@ -6,7 +6,7 @@
 
 **Transformasikan Termux Android Anda Menjadi Workstation Ubuntu Linux (CLI & GUI Desktop) Secara Instan**
 
-[![Version](https://img.shields.io/badge/version-v1.2.0-cyan.svg)](https://github.com/nxcode123/nx_code)
+[![Version](https://img.shields.io/badge/version-v1.3.0-cyan.svg)](https://github.com/nxcode123/nx_code)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Termux-green.svg)](https://termux.dev)
 [![License](https://img.shields.io/badge/license-MIT-pink.svg)](LICENSE)
 
@@ -39,7 +39,7 @@
 
 Selamat datang di **NX_CODE**, sebuah skrip otomasi berbasis Bash dengan antarmuka bertema *Cyberpunk* yang dirancang khusus untuk menyulap Termux Android menjadi lingkungan kerja Linux (Ubuntu) yang tangguh.
 
-Proyek ini dibuat agar **SIAPA SAJA BISA MENIKMATI** lingkungan Ubuntu CLI dan GUI desktop (XFCE4 via Termux:X11) secara instan, lengkap dengan fitur pembaruan skrip dinamis, migrasi perbaikan utilitas sistem, serta penanganan otomatis masalah sandbox untuk aplikasi berbasis Electron/Chromium (seperti VS Code, Discord, Chromium Browser) di lingkungan Android PRoot.
+Proyek ini dibuat agar **SIAPA SAJA BISA MENIKMATI** lingkungan Ubuntu CLI, GUI desktop (XFCE4 via Termux:X11), serta integrasi manajemen file visual via **Midnight Commander (MC)** secara instan, lengkap dengan fitur pembaruan skrip dinamis, migrasi perbaikan utilitas sistem, serta penanganan otomatis masalah sandbox untuk aplikasi berbasis Electron/Chromium (seperti VS Code, Discord, Chromium Browser) di lingkungan Android PRoot.
 
 ---
 
