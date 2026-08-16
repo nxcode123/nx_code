@@ -20,12 +20,67 @@ cleanup_terminal() {
 }
 trap cleanup_terminal EXIT INT TERM
 
+apply_theme() {
+    local theme="${1:-cyberpunk}"
+    case "$theme" in
+        cyberpunk)
+            CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        matrix)
+            CYAN='\033[0;32m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[0;32m'; PURPLE='\033[2;32m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        dracula)
+            CYAN='\033[1;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;35m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        synthwave)
+            CYAN='\033[1;36m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[1;91m'; PURPLE='\033[1;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        ocean)
+            CYAN='\033[1;34m'; NEON_GREEN='\033[0;36m'; NEON_PINK='\033[1;36m'; PURPLE='\033[0;34m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        sunset)
+            CYAN='\033[1;33m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;31m'; PURPLE='\033[0;33m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        emerald)
+            CYAN='\033[0;36m'; NEON_GREEN='\033[1;92m'; NEON_PINK='\033[0;32m'; PURPLE='\033[0;32m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        bloodmoon)
+            CYAN='\033[0;31m'; NEON_GREEN='\033[1;33m'; NEON_PINK='\033[1;91m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        monokai)
+            CYAN='\033[1;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;33m'; PURPLE='\033[1;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        arctic)
+            CYAN='\033[1;96m'; NEON_GREEN='\033[1;36m'; NEON_PINK='\033[1;34m'; PURPLE='\033[0;36m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        gold)
+            CYAN='\033[1;33m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[0;33m'; PURPLE='\033[0;33m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+        *)
+            CYAN='\033[0;36m'; NEON_GREEN='\033[1;32m'; NEON_PINK='\033[1;95m'; PURPLE='\033[0;35m'; WHITE='\033[1;37m'; NC='\033[0m' ;;
+    esac
+    SUCCESS="${NEON_GREEN}[✔]${NC}"
+    PROCESS="${CYAN}[➔]${NC}"
+}
+
+setup_nx_menu_command() {
+    local bin_dir="${PREFIX:-/data/data/com.termux/files/usr}/bin"
+    if [ -d "$bin_dir" ] && [ -w "$bin_dir" ]; then
+        cat << 'EOF_NX' > "$bin_dir/nx-menu"
+#!/data/data/com.termux/files/usr/bin/bash
+TARGET="$HOME/nx_code.sh"
+if [ ! -s "$TARGET" ] && [ -s "./nx_code.sh" ]; then
+    TARGET="$(realpath ./nx_code.sh 2>/dev/null || echo "./nx_code.sh")"
+fi
+if [ ! -s "$TARGET" ]; then
+    echo -e "\033[0;36m[➔] Mempersiapkan file NX_CODE...\033[0m"
+    curl -fsSL --connect-timeout 5 https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh -o "$HOME/nx_code.sh" 2>/dev/null
+    chmod +x "$HOME/nx_code.sh" 2>/dev/null
+    TARGET="$HOME/nx_code.sh"
+fi
+exec bash "$TARGET" --menu "$@"
+EOF_NX
+        chmod +x "$bin_dir/nx-menu" 2>/dev/null
+        ln -sf "$bin_dir/nx-menu" "$bin_dir/nx" 2>/dev/null || cp "$bin_dir/nx-menu" "$bin_dir/nx" 2>/dev/null
+        chmod +x "$bin_dir/nx" 2>/dev/null
+    fi
+}
+
 init_theme_system() {
-    mkdir -p "$THEME_DIR"
+    mkdir -p "$THEME_DIR" 2>/dev/null
 
     ACTIVE_THEME="cyberpunk"
     DEBUG_MODE="off"
-    [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+    [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" 2>/dev/null
 
     [ "$DEBUG_MODE" == "on" ] && set -x
 
@@ -33,36 +88,16 @@ init_theme_system() {
 
     # Salin dari repositori lokal jika tersedia
     if [ ! -f "$theme_file" ] && [ -f "./themes/$ACTIVE_THEME.sh" ]; then
-        cp "./themes/$ACTIVE_THEME.sh" "$theme_file"
-    fi
-
-    if [ ! -f "$theme_file" ]; then
-        curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$ACTIVE_THEME.sh" -o "$theme_file" 2>/dev/null
-    fi
-
-    if [ ! -s "$theme_file" ]; then
-        ACTIVE_THEME="cyberpunk"
-        theme_file="$THEME_DIR/cyberpunk.sh"
-        if [ -f "./themes/cyberpunk.sh" ]; then
-            cp "./themes/cyberpunk.sh" "$theme_file"
-        elif [ ! -f "$theme_file" ]; then
-            curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/cyberpunk.sh" -o "$theme_file" 2>/dev/null
-        fi
+        cp "./themes/$ACTIVE_THEME.sh" "$theme_file" 2>/dev/null
     fi
 
     if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
-        source "$theme_file"
+        source "$theme_file" 2>/dev/null
+        SUCCESS="${NEON_GREEN}[✔]${NC}"
+        PROCESS="${CYAN}[➔]${NC}"
     else
-        CYAN='\033[0;36m'
-        NEON_GREEN='\033[1;32m'
-        NEON_PINK='\033[1;95m'
-        PURPLE='\033[0;35m'
-        WHITE='\033[1;37m'
-        NC='\033[0m'
+        apply_theme "$ACTIVE_THEME"
     fi
-
-    SUCCESS="${NEON_GREEN}[✔]${NC}"
-    PROCESS="${CYAN}[➔]${NC}"
 }
 
 init_theme_system
@@ -187,6 +222,18 @@ setup_nonroot_user() {
         echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
         chmod 0440 /etc/sudoers.d/$NX_USER
         mkdir -p /storage && chmod 777 /storage
+
+        # Pasang bantuan nx-menu di dalam lingkungan Ubuntu
+        cat > /usr/local/bin/nx-menu << 'EOF_NX_UBUNTU'
+#!/bin/bash
+echo -e \"\033[1;95m╔══════════════════════════════════════════════════════╗\033[0m\"
+echo -e \"\033[1;36m              NX_CODE - UBUNTU ENVIRONMENT             \033[0m\"
+echo -e \"\033[1;95m╚══════════════════════════════════════════════════════╝\033[0m\"
+echo -e \"\033[1;33m[!] Anda saat ini sedang berada di dalam terminal Ubuntu CLI.\033[0m\"
+echo -e \"\033[0;36m[➔] Untuk kembali ke Termux dan membuka Control Center:\033[0m\"
+echo -e \"    Ketik \033[1;32mexit\033[0m lalu jalankan \033[1;36mnx-menu\033[0m di Termux.\n\"
+EOF_NX_UBUNTU
+        chmod 755 /usr/local/bin/nx-menu
 
         # Konfigurasi Lingkungan Global PRoot (Fix Electron Sandbox, Audio, & AT-SPI D-Bus)
         cat > /etc/profile.d/nx_environment.sh << 'EOF_ENV'
@@ -379,22 +426,8 @@ kill_ubuntu_gui() {
 }
 
 change_theme_menu() {
-    local manifest="$HOME/.nx_themes_manifest.tmp"
-    rm -f "$manifest"
-
-    if [ -f "./themes/theme.list" ]; then
-        cp "./themes/theme.list" "$manifest"
-    elif ! curl $NX_CURL_OPTS "$NX_THEMES_MANIFEST_URL" -o "$manifest" 2>/dev/null || [ ! -s "$manifest" ]; then
-        echo -e "cyberpunk|Cyberpunk Neon\nmatrix|Matrix Green\ndracula|Dracula Dark\nsynthwave|Synthwave 84\nocean|Oceanic Deep\nsunset|Sunset Orange\nemerald|Emerald Forest\nbloodmoon|Blood Moon\nmonokai|Monokai Pro\narctic|Arctic Frost\ngold|Cyber Gold" > "$manifest"
-    fi
-
-    local t_names=() t_descs=()
-    while IFS='|' read -r t_name t_desc; do
-        [ -z "$t_name" ] && continue
-        t_names+=("$t_name")
-        t_descs+=("${t_desc:-Tema kustom}")
-    done < "$manifest"
-    rm -f "$manifest"
+    local t_names=("cyberpunk" "matrix" "dracula" "synthwave" "ocean" "sunset" "emerald" "bloodmoon" "monokai" "arctic" "gold")
+    local t_descs=("Cyberpunk Neon Theme" "Matrix Green Hacker" "Dracula Dark Pro" "Synthwave 84 Neon" "Oceanic Deep Blue" "Sunset Orange" "Emerald Forest" "Blood Moon Crimson" "Monokai Pro" "Arctic Frost Ice" "Cyber Gold Luxury")
 
     while true; do
         animate_logo
@@ -419,33 +452,19 @@ change_theme_menu() {
         fi
 
         local idx=$((t_choice - 1))
-        if [ -n "${t_names[$idx]:-}" ]; then
+        if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#t_names[@]}" ]; then
             local chosen="${t_names[$idx]}"
-            local theme_file="$THEME_DIR/$chosen.sh"
+            ACTIVE_THEME="$chosen"
+            apply_theme "$ACTIVE_THEME"
 
-            if [ ! -f "$theme_file" ] && [ -f "./themes/$chosen.sh" ]; then
-                cp "./themes/$chosen.sh" "$theme_file"
-            fi
+            mkdir -p "$THEME_DIR" 2>/dev/null
+            echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
+            echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
 
-            if [ ! -f "$theme_file" ]; then
-                echo -e "\n${PROCESS} ${CYAN}Mengunduh tema '$chosen.sh'...${NC}"
-                curl $NX_CURL_OPTS "$NX_THEMES_BASE_URL/$chosen.sh" -o "$theme_file" 2>/dev/null
-                sed -i 's/\xc2\xa0/ /g' "$theme_file" 2>/dev/null
-            fi
-
-            if [ -f "$theme_file" ] && [ -s "$theme_file" ]; then
-                ACTIVE_THEME="$chosen"
-                echo "ACTIVE_THEME=\"$ACTIVE_THEME\"" > "$CONFIG_FILE"
-                echo "DEBUG_MODE=\"$DEBUG_MODE\"" >> "$CONFIG_FILE"
-                echo -e "\n${SUCCESS} ${WHITE}Tema aktif diubah ke: ${NEON_PINK}$chosen${NC}"
-                sleep 1
-                source "$theme_file"
-            else
-                echo -e "\n${NEON_PINK}[ERR] Gagal memuat tema. Periksa koneksi internet.${NC}"
-                sleep 1
-            fi
+            echo -e "\n${SUCCESS} ${WHITE}Tema aktif diubah ke: ${NEON_PINK}$chosen${NC}"
+            sleep 1
         else
-            echo -e "${NEON_PINK}[!] Pilihan tidak valid.${NC}"
+            echo -e "\n${NEON_PINK}[!] Pilihan tidak valid.${NC}"
             sleep 1
         fi
     done
@@ -478,7 +497,9 @@ run_auto_cleaner() {
     [ -f "$last_clean_file" ] && last_clean=$(cat "$last_clean_file" 2>/dev/null)
 
     if [ "$today" != "$last_clean" ]; then
-        execute_task "System Storage Clean" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
+        if command -v pkg >/dev/null 2>&1; then
+            execute_task "System Storage Clean" bash -c "pkg clean -y && [ -n \"$TMPDIR\" ] && rm -rf \"$TMPDIR\"/*"
+        fi
         echo "$today" > "$last_clean_file"
     fi
 }
@@ -515,60 +536,98 @@ copy_self_to_home() {
     local src
     src=$(realpath "${BASH_SOURCE[0]:-$0}" 2>/dev/null)
 
-    if [ -n "$src" ] && [ -f "$src" ] && [ "$src" != "$dest" ]; then
-        cp "$src" "$dest"
+    # 1. Jika sumber adalah file lokal biasa dan berbeda dari dest
+    if [ -n "$src" ] && [ -f "$src" ] && [[ "$src" != /dev/fd/* ]] && [[ "$src" != /proc/* ]] && [ "$src" != "$dest" ]; then
+        cp "$src" "$dest" 2>/dev/null
         sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null
-        chmod +x "$dest"
+        chmod +x "$dest" 2>/dev/null
+        setup_nx_menu_command
         return 0
     fi
-    [ -f "$dest" ] || return 1
+
+    # 2. Jika file sudah ada di dest dan berukuran valid
+    if [ -f "$dest" ] && [ -s "$dest" ]; then
+        chmod +x "$dest" 2>/dev/null
+        setup_nx_menu_command
+        return 0
+    fi
+
+    # 3. Jika file di direktori saat ini ada
+    if [ -f "./nx_code.sh" ] && [ -s "./nx_code.sh" ]; then
+        cp "./nx_code.sh" "$dest" 2>/dev/null
+        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null
+        chmod +x "$dest" 2>/dev/null
+        setup_nx_menu_command
+        return 0
+    fi
+
+    # 4. Jika dijalankan via pipe / remote stream, unduh langsung
+    echo -e "\n${PROCESS} ${CYAN}Menyimpan salinan skrip NX_CODE ke $dest...${NC}"
+    if curl $NX_CURL_OPTS "$NX_CODE_REPO_RAW_URL" -o "$dest" 2>/dev/null && [ -s "$dest" ]; then
+        sed -i 's/\xc2\xa0/ /g' "$dest" 2>/dev/null
+        chmod +x "$dest" 2>/dev/null
+        setup_nx_menu_command
+        return 0
+    fi
+
+    return 1
 }
 
 # ==============================================================================
 # [6] ROUTING & MENU
 # ==============================================================================
 show_shortcut_menu() {
-    animate_logo
-    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e "${WHITE}               NX_CODE CONTROL CENTER                 ${NC}"
-    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI Core (Terminal Linux)${NC}"
-    echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 + Audio via Termux:X11)${NC}"
-    echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI & Audio Session${NC}"
-    echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
-    echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for System Updates${NC}"
-    echo -e " ${PURPLE}[6]${NC} ${WHITE}Toggle Debug Mode (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
-    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
-    echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-    echo -ne "${CYAN}[?] Select Option ➔ ${NC}"
-    read -r pilihan
+    while true; do
+        animate_logo
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e "${WHITE}               NX_CODE CONTROL CENTER                 ${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI Core (Terminal Linux)${NC}"
+        echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 + Audio via Termux:X11)${NC}"
+        echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI & Audio Session${NC}"
+        echo -e " ${PURPLE}[4]${NC} ${WHITE}Ganti Tema Interface${NC}"
+        echo -e " ${PURPLE}[5]${NC} ${WHITE}Check for System Updates${NC}"
+        echo -e " ${PURPLE}[6]${NC} ${WHITE}Toggle Debug Mode (${NEON_GREEN}${DEBUG_MODE^^}${WHITE})${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
+        echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
+        echo -ne "${CYAN}[?] Select Option ➔ ${NC}"
+        read -r pilihan
 
-    case "$pilihan" in
-        1)
-            echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI...${NC}"; sleep 1
-            if is_ubuntu_installed; then
-                local cli_user="--user $NX_USER"
-                ! is_nonroot_user_setup && cli_user=""
-                proot-distro login ubuntu $cli_user
-            else
-                echo -e "${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
-            fi
-            ;;
-        2) launch_ubuntu_gui; sleep 1; show_shortcut_menu ;;
-        3) kill_ubuntu_gui; sleep 1; show_shortcut_menu ;;
-        4) change_theme_menu; sleep 1; show_shortcut_menu ;;
-        5) check_for_update; sleep 1; show_shortcut_menu ;;
-        6) toggle_debug_mode; sleep 1; show_shortcut_menu ;;
-        0) echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n" ;;
-        *) echo -e "\n${NEON_PINK}[!] Pilihan tidak valid, silakan coba lagi.${NC}"; sleep 1; show_shortcut_menu ;;
-    esac
+        case "$pilihan" in
+            1)
+                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI...${NC}"
+                sleep 0.5
+                if is_ubuntu_installed; then
+                    local cli_user="--user $NX_USER"
+                    ! is_nonroot_user_setup && cli_user=""
+                    proot-distro login ubuntu $cli_user
+                else
+                    echo -e "${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
+                    sleep 1.5
+                fi
+                ;;
+            2) launch_ubuntu_gui; sleep 1 ;;
+            3) kill_ubuntu_gui; sleep 1 ;;
+            4) change_theme_menu ;;
+            5) check_for_update; sleep 1 ;;
+            6) toggle_debug_mode ;;
+            0)
+                echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n"
+                break
+                ;;
+            *)
+                echo -e "\n${NEON_PINK}[!] Pilihan tidak valid, silakan coba lagi.${NC}"
+                sleep 1
+                ;;
+        esac
+    done
 }
 
 # Argument Routing
 case "$1" in
     --logo-only) animate_logo; exit 0 ;;
-    --menu) show_shortcut_menu; exit 0 ;;
+    --menu|-m|menu) show_shortcut_menu; exit 0 ;;
     --ui-only)
         animate_logo
 
@@ -587,6 +646,15 @@ case "$1" in
 
         run_auto_cleaner
         echo -e "\n${PURPLE}Ketik ${CYAN}nx-menu${PURPLE} untuk membuka control center.${NC}\n"
+        exit 0
+        ;;
+    --help|-h)
+        echo "NX_CODE - Hypervisor GUI & CLI Control"
+        echo "Penggunaan: nx-menu [opsi]"
+        echo "  --menu, -m      Buka NX_CODE Control Center (Default)"
+        echo "  --ui-only       Tampilkan ringkasan status sistem"
+        echo "  --logo-only     Tampilkan logo banner saja"
+        echo "  --help, -h      Tampilkan pesan bantuan ini"
         exit 0
         ;;
 esac
@@ -639,6 +707,7 @@ if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
 alias ls='ls --color=auto --group-directories-first'
 alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
+alias nx='bash $HOME/nx_code.sh --menu'
 PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
 
 clear() { command clear; [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only; }
@@ -652,6 +721,13 @@ rm() {
 }
 
 command_not_found_handle() {
+    if [ "$1" = "nx-menu" ] || [ "$1" = "nx" ] || [ "$1" = "menu" ]; then
+        if [ -x "${PREFIX:-/data/data/com.termux/files/usr}/bin/nx-menu" ]; then
+            exec "${PREFIX:-/data/data/com.termux/files/usr}/bin/nx-menu"
+        elif [ -f "$HOME/nx_code.sh" ]; then
+            exec bash "$HOME/nx_code.sh" --menu
+        fi
+    fi
     echo -e "\033[1;95m[!] ALERT: UNAUTHORIZED COMMAND '$1' DETECTED.\033[0m"
     return 127
 }
@@ -659,6 +735,7 @@ command_not_found_handle() {
 EOF
     echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Injected Successfully${NC}"
 else
+    setup_nx_menu_command
     echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${CYAN}Already Configured${NC}"
 fi
 
@@ -676,7 +753,7 @@ echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
 read -r final_choice
 
 case "$final_choice" in
-    1) exec bash "$HOME/nx_code.sh" --menu ;;
+    1) show_shortcut_menu; exit 0 ;;
     2) exec bash ;;
     *) exit 0 ;;
 esac

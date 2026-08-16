@@ -27,6 +27,27 @@ fi
 
 chmod +x "$LOCAL_SCRIPT"
 
-# 3. Jalankan nx_code.sh untuk memulai inisialisasi lingkungan
+# 3. Pasang executable global nx-menu
+BIN_DIR="${PREFIX:-/data/data/com.termux/files/usr}/bin"
+if [ -d "$BIN_DIR" ]; then
+    cat << 'EOF' > "$BIN_DIR/nx-menu"
+#!/data/data/com.termux/files/usr/bin/bash
+TARGET="$HOME/nx_code.sh"
+if [ ! -s "$TARGET" ] && [ -s "./nx_code.sh" ]; then
+    TARGET="$(realpath ./nx_code.sh 2>/dev/null || echo "./nx_code.sh")"
+fi
+if [ ! -s "$TARGET" ]; then
+    curl -fsSL --connect-timeout 5 https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh -o "$HOME/nx_code.sh" 2>/dev/null
+    chmod +x "$HOME/nx_code.sh" 2>/dev/null
+    TARGET="$HOME/nx_code.sh"
+fi
+exec bash "$TARGET" --menu "$@"
+EOF
+    chmod +x "$BIN_DIR/nx-menu" 2>/dev/null
+    ln -sf "$BIN_DIR/nx-menu" "$BIN_DIR/nx" 2>/dev/null || cp "$BIN_DIR/nx-menu" "$BIN_DIR/nx" 2>/dev/null
+    chmod +x "$BIN_DIR/nx" 2>/dev/null
+fi
+
+# 4. Jalankan nx_code.sh untuk memulai inisialisasi lingkungan
 echo -e "\n\033[1;32m[✔] Skrip inti berhasil disiapkan. Menjalankan konfigurasi sistem...\033[0m\n"
 exec bash "$LOCAL_SCRIPT" "$@"
