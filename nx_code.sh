@@ -220,37 +220,40 @@ stop_pulseaudio() {
 # [4] GUI MANAGEMENT & SETTINGS
 # ==============================================================================
 setup_nonroot_user() {
-    ubuntu_login -- bash -c "
-        if ! id $NX_USER >/dev/null 2>&1; then
-            useradd -m -s /bin/bash $NX_USER 2>/dev/null
-        fi
-        usermod -aG sudo,audio,video $NX_USER 2>/dev/null || true
-        echo '$NX_USER ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$NX_USER
-        chmod 0440 /etc/sudoers.d/$NX_USER
-        mkdir -p /storage/shared && chmod -R 777 /storage
+    ubuntu_login -- bash -s -- "$NX_USER" << 'REMOTE_SETUP'
+NX_USER="$1"
 
-        # Pasang bantuan nx-menu di dalam lingkungan Ubuntu
-        cat > /usr/local/bin/nx-menu << 'EOF_NX_UBUNTU'
+# --- Buat user non-root & beri hak sudo ---
+if ! id "$NX_USER" >/dev/null 2>&1; then
+    useradd -m -s /bin/bash "$NX_USER" 2>/dev/null
+fi
+usermod -aG sudo,audio,video "$NX_USER" 2>/dev/null || true
+echo "$NX_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NX_USER"
+chmod 0440 "/etc/sudoers.d/$NX_USER"
+mkdir -p /storage/shared && chmod -R 777 /storage
+
+# --- Bantuan nx-menu di dalam lingkungan Ubuntu ---
+cat > /usr/local/bin/nx-menu << 'EOF_NX_UBUNTU'
 #!/bin/bash
-echo -e \"\033[1;95m╔══════════════════════════════════════════════════════╗\033[0m\"
-echo -e \"\033[1;36m              NX_CODE - UBUNTU ENVIRONMENT             \033[0m\"
-echo -e \"\033[1;95m╚══════════════════════════════════════════════════════╝\033[0m\"
-echo -e \"\033[1;33m[!] Anda saat ini sedang berada di dalam terminal Ubuntu CLI.\033[0m\"
-echo -e \"\033[0;36m[➔] Untuk kembali ke Termux dan membuka Control Center:\033[0m\"
-echo -e \"    Ketik \033[1;32mexit\033[0m lalu jalankan \033[1;36mnx-menu\033[0m di Termux.\n\"
+echo -e "\033[1;95m╔══════════════════════════════════════════════════════╗\033[0m"
+echo -e "\033[1;36m              NX_CODE - UBUNTU ENVIRONMENT             \033[0m"
+echo -e "\033[1;95m╚══════════════════════════════════════════════════════╝\033[0m"
+echo -e "\033[1;33m[!] Anda saat ini sedang berada di dalam terminal Ubuntu CLI.\033[0m"
+echo -e "\033[0;36m[➔] Untuk kembali ke Termux dan membuka Control Center:\033[0m"
+echo -e "    Ketik \033[1;32mexit\033[0m lalu jalankan \033[1;36mnx-menu\033[0m di Termux.\n"
 EOF_NX_UBUNTU
-        chmod 755 /usr/local/bin/nx-menu
+chmod 755 /usr/local/bin/nx-menu
 
-        # Konfigurasi PulseAudio client (cegah autospawn server di PRoot & hubungkan ke Termux)
-        mkdir -p /etc/pulse
-        cat > /etc/pulse/client.conf << 'EOF_PULSE_CLIENT'
+# --- Konfigurasi PulseAudio client (cegah autospawn server di PRoot & hubungkan ke Termux) ---
+mkdir -p /etc/pulse
+cat > /etc/pulse/client.conf << 'EOF_PULSE_CLIENT'
 default-server = 127.0.0.1
 autospawn = no
 EOF_PULSE_CLIENT
-        chmod 644 /etc/pulse/client.conf 2>/dev/null
+chmod 644 /etc/pulse/client.conf 2>/dev/null
 
-        # Konfigurasi ALSA to PulseAudio bridge
-        cat > /etc/asound.conf << 'EOF_ASOUND'
+# --- Konfigurasi ALSA to PulseAudio bridge ---
+cat > /etc/asound.conf << 'EOF_ASOUND'
 pcm.!default {
     type pulse
     fallback "sysdefault"
@@ -261,38 +264,38 @@ ctl.!default {
     fallback "sysdefault"
 }
 EOF_ASOUND
-        chmod 644 /etc/asound.conf 2>/dev/null
+chmod 644 /etc/asound.conf 2>/dev/null
 
-        # Script test audio untuk kemudahan pengujian dari terminal Ubuntu
-        cat > /usr/local/bin/nx-audio-test << 'EOF_AUDIO_TEST'
+# --- Script test audio untuk kemudahan pengujian dari terminal Ubuntu ---
+cat > /usr/local/bin/nx-audio-test << 'EOF_AUDIO_TEST'
 #!/bin/bash
-echo -e \"\033[0;36m[➔] Menguji koneksi audio PulseAudio ke Termux...\033[0m\"
+echo -e "\033[0;36m[➔] Menguji koneksi audio PulseAudio ke Termux...\033[0m"
 export PULSE_SERVER=127.0.0.1
 if command -v pactl >/dev/null 2>&1; then
     if pactl info >/dev/null 2>&1; then
-        echo -e \"\033[1;32m[✔] Server PulseAudio terdeteksi dan terhubung!\033[0m\"
-        echo -e \"\033[0;35m    Server String : \033[1;37m\$(pactl info 2>/dev/null | grep 'Server String' | cut -d: -f2-)\033[0m\"
-        echo -e \"\033[0;35m    Default Sink  : \033[1;37m\$(pactl info 2>/dev/null | grep 'Default Sink' | cut -d: -f2-)\033[0m\"
+        echo -e "\033[1;32m[✔] Server PulseAudio terdeteksi dan terhubung!\033[0m"
+        echo -e "\033[0;35m    Server String : \033[1;37m$(pactl info 2>/dev/null | grep 'Server String' | cut -d: -f2-)\033[0m"
+        echo -e "\033[0;35m    Default Sink  : \033[1;37m$(pactl info 2>/dev/null | grep 'Default Sink' | cut -d: -f2-)\033[0m"
         if command -v paplay >/dev/null 2>&1 && [ -f /usr/share/sounds/freedesktop/stereo/complete.oga ]; then
-            echo -e \"\033[0;36m[➔] Memutar suara uji coba (paplay)...\033[0m\"
+            echo -e "\033[0;36m[➔] Memutar suara uji coba (paplay)...\033[0m"
             paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true
         elif command -v speaker-test >/dev/null 2>&1; then
-            echo -e \"\033[0;36m[➔] Memutar nada uji coba 1 detik (speaker-test)...\033[0m\"
+            echo -e "\033[0;36m[➔] Memutar nada uji coba 1 detik (speaker-test)...\033[0m"
             speaker-test -t sine -f 440 -l 1 >/dev/null 2>&1 || true
         fi
-        echo -e \"\033[1;32m[✔] Pengujian audio selesai.\033[0m\"
+        echo -e "\033[1;32m[✔] Pengujian audio selesai.\033[0m"
     else
-        echo -e \"\033[1;91m[✘] Tidak dapat terhubung ke PulseAudio server (127.0.0.1:4713).\033[0m\"
-        echo -e \"\033[1;33m    Pastikan PulseAudio aktif di Termux dengan menjalankan nx-menu.\033[0m\"
+        echo -e "\033[1;91m[✘] Tidak dapat terhubung ke PulseAudio server (127.0.0.1:4713).\033[0m"
+        echo -e "\033[1;33m    Pastikan PulseAudio aktif di Termux dengan menjalankan nx-menu.\033[0m"
     fi
 else
-    echo -e \"\033[1;33m[!] pulseaudio-utils belum terinstal. Jalankan: sudo apt install pulseaudio-utils\033[0m\"
+    echo -e "\033[1;33m[!] pulseaudio-utils belum terinstal. Jalankan: sudo apt install pulseaudio-utils\033[0m"
 fi
 EOF_AUDIO_TEST
-        chmod 755 /usr/local/bin/nx-audio-test
+chmod 755 /usr/local/bin/nx-audio-test
 
-        # Konfigurasi Lingkungan Global PRoot (Fix Electron Sandbox, Audio, & AT-SPI D-Bus)
-        cat > /etc/profile.d/nx_environment.sh << 'EOF_ENV'
+# --- Konfigurasi Lingkungan Global PRoot (Fix Electron Sandbox, Audio, & AT-SPI D-Bus) ---
+cat > /etc/profile.d/nx_environment.sh << 'EOF_ENV'
 export ELECTRON_DISABLE_SANDBOX=1
 export PULSE_SERVER=127.0.0.1
 export NO_AT_BRIDGE=1
@@ -301,12 +304,12 @@ export GDK_BACKEND=x11
 export XDG_CURRENT_DESKTOP=XFCE
 export XDG_SESSION_TYPE=x11
 EOF_ENV
-        chmod 644 /etc/profile.d/nx_environment.sh
+chmod 644 /etc/profile.d/nx_environment.sh
 
-        grep -q ELECTRON_DISABLE_SANDBOX /etc/environment 2>/dev/null || echo 'ELECTRON_DISABLE_SANDBOX=1' >> /etc/environment
-        grep -q PULSE_SERVER /etc/environment 2>/dev/null || echo 'PULSE_SERVER=127.0.0.1' >> /etc/environment
-        grep -q NO_AT_BRIDGE /etc/environment 2>/dev/null || echo 'NO_AT_BRIDGE=1' >> /etc/environment
-    "
+grep -q ELECTRON_DISABLE_SANDBOX /etc/environment 2>/dev/null || echo 'ELECTRON_DISABLE_SANDBOX=1' >> /etc/environment
+grep -q PULSE_SERVER /etc/environment 2>/dev/null || echo 'PULSE_SERVER=127.0.0.1' >> /etc/environment
+grep -q NO_AT_BRIDGE /etc/environment 2>/dev/null || echo 'NO_AT_BRIDGE=1' >> /etc/environment
+REMOTE_SETUP
 }
 
 choose_resolution() {
@@ -823,47 +826,40 @@ esac
 # ==============================================================================
 # [7] INSTALLATION MODE (BOOTSTRAPPER)
 # ==============================================================================
-command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
-animate_logo
+install_dependencies() {
+    execute_task "Updating Repos" pkg update -y -o Dpkg::Options::="--force-confold"
+    execute_task "Upgrading Core" pkg upgrade -y -o Dpkg::Options::="--force-confold"
+    execute_task "Deploy Hypervisor" pkg install proot-distro pulseaudio coreutils mc -y -o Dpkg::Options::="--force-confold"
+    execute_task "Add X11 Repo" pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
+    execute_task "Deploy X11 Server" pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
+}
 
-ensure_storage_setup
+install_ubuntu_rootfs() {
+    if ! is_ubuntu_installed; then
+        echo -e "\n${PROCESS} ${CYAN}Mengunduh Ubuntu Core OS secara live...${NC}"
+        proot-distro remove ubuntu > /dev/null 2>&1 || true
+        echo -e "${PURPLE}[!] Mohon tunggu hingga proses unduhan selesai.${NC}"
+        echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
+        proot-distro install ubuntu
+        echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
+    fi
+}
 
-execute_task "Updating Repos" pkg update -y -o Dpkg::Options::="--force-confold"
-execute_task "Upgrading Core" pkg upgrade -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploy Hypervisor" pkg install proot-distro pulseaudio coreutils mc -y -o Dpkg::Options::="--force-confold"
-execute_task "Add X11 Repo" pkg install x11-repo -y -o Dpkg::Options::="--force-confold"
-execute_task "Deploy X11 Server" pkg install termux-x11-nightly -y -o Dpkg::Options::="--force-confold"
-
-if ! is_ubuntu_installed; then
-    echo -e "\n${PROCESS} ${CYAN}Mengunduh Ubuntu Core OS secara live...${NC}"
-    proot-distro remove ubuntu > /dev/null 2>&1 || true
-    echo -e "${PURPLE}[!] Mohon tunggu hingga proses unduhan selesai.${NC}"
-    echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
-    proot-distro install ubuntu
-    echo -e "${CYAN}──────────────────────────────────────────────────────${NC}"
-fi
-
-# Pastikan konfigurasi non-root & lingkungan global terpasang
-if is_ubuntu_installed; then
-    execute_task "Setup PRoot Config" setup_nonroot_user
-fi
-
-echo ""
-is_ubuntu_installed && echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_PINK}Failed${NC}"
-is_termux_x11_installed && echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Failed${NC}"
-command -v pulseaudio >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_PINK}Failed${NC}"
-command -v mc >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_PINK}Failed${NC}"
-echo ""
-
-if ! copy_self_to_home; then
-    echo -e "${NEON_PINK}[!] Skrip berjalan via remote stream. Disimpan lokal di $HOME/nx_code.sh${NC}"
-fi
+print_install_summary() {
+    echo ""
+    is_ubuntu_installed && echo -e "${SUCCESS} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Ubuntu Core OS            :${NC} ${NEON_PINK}Failed${NC}"
+    is_termux_x11_installed && echo -e "${SUCCESS} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Termux-X11 Display Server:${NC} ${NEON_PINK}Failed${NC}"
+    command -v pulseaudio >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}PulseAudio Sound Server   :${NC} ${NEON_PINK}Failed${NC}"
+    command -v mc >/dev/null 2>&1 && echo -e "${SUCCESS} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_GREEN}Installed${NC}" || echo -e "${NEON_PINK}[X]${NC} ${WHITE}Midnight Commander (MC)   :${NC} ${NEON_PINK}Failed${NC}"
+    echo ""
+}
 
 # Selalu hapus blok lama & tulis ulang, supaya perubahan (PS1, alias, dll)
 # di nx_code.sh ikut terupdate di .bashrc setiap kali skrip ini dijalankan.
-sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
+write_bashrc_block() {
+    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
 
-cat << 'EOF' >> "$HOME/.bashrc"
+    cat << 'EOF' >> "$HOME/.bashrc"
 
 # --- NX_CODE ENVIRONMENT ---
 [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --ui-only
@@ -897,26 +893,53 @@ command_not_found_handle() {
 }
 # ---------------------------
 EOF
-setup_nx_menu_command
-echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Refreshed${NC}"
+    setup_nx_menu_command
+    echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Refreshed${NC}"
+}
+
+print_final_menu() {
+    echo -e "\n${NEON_GREEN}[Complete]${NC}"
+    echo -e "${NEON_PINK}======================================================${NC}"
+    echo -e "${NEON_GREEN}           SYSTEM INITIALIZED. NX_CODE ACTIVE.         ${NC}"
+    echo -e "${NEON_PINK}======================================================${NC}"
+
+    echo -e " ${PURPLE}[1]${NC} ${WHITE}Masuk ke Menu Utama (nx-menu)${NC}"
+    echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka Midnight Commander (MC)${NC}"
+    echo -e " ${PURPLE}[3]${NC} ${WHITE}Buka Sesi Terminal Baru${NC}"
+    echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit${NC}"
+    echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
+    read -r final_choice
+
+    case "$final_choice" in
+        1) show_shortcut_menu; exit 0 ;;
+        2) launch_midnight_commander; exit 0 ;;
+        3) exec bash ;;
+        *) exit 0 ;;
+    esac
+}
+
+# --- Alur eksekusi utama bootstrapper ---
+command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
+animate_logo
+
+ensure_storage_setup
+install_dependencies
+install_ubuntu_rootfs
+
+# Pastikan konfigurasi non-root & lingkungan global terpasang
+if is_ubuntu_installed; then
+    execute_task "Setup PRoot Config" setup_nonroot_user
+fi
+
+print_install_summary
+
+if ! copy_self_to_home; then
+    echo -e "${NEON_PINK}[!] Skrip berjalan via remote stream. Disimpan lokal di $HOME/nx_code.sh${NC}"
+fi
+
+write_bashrc_block
 
 command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
 
-echo -e "\n${NEON_GREEN}[Complete]${NC}"
-echo -e "${NEON_PINK}======================================================${NC}"
-echo -e "${NEON_GREEN}           SYSTEM INITIALIZED. NX_CODE ACTIVE.         ${NC}"
-echo -e "${NEON_PINK}======================================================${NC}"
+print_final_menu
 
-echo -e " ${PURPLE}[1]${NC} ${WHITE}Masuk ke Menu Utama (nx-menu)${NC}"
-echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka Midnight Commander (MC)${NC}"
-echo -e " ${PURPLE}[3]${NC} ${WHITE}Buka Sesi Terminal Baru${NC}"
-echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit${NC}"
-echo -ne "${CYAN}[?] Pilihan ➔ ${NC}"
-read -r final_choice
-
-case "$final_choice" in
-    1) show_shortcut_menu; exit 0 ;;
-    2) launch_midnight_commander; exit 0 ;;
-    3) exec bash ;;
-    *) exit 0 ;;
-esac
