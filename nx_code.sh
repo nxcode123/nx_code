@@ -739,12 +739,13 @@ show_shortcut_menu() {
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
         echo -e "${WHITE}               NX_CODE CONTROL CENTER                 ${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
-        echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI Core (Terminal Linux)${NC}"
-        echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu GUI (XFCE4 + Audio via Termux:X11)${NC}"
-        echo -e " ${PURPLE}[3]${NC} ${WHITE}Kill Active GUI & Audio Session${NC}"
-        echo -e " ${PURPLE}[4]${NC} ${WHITE}Midnight Commander (MC File Manager)${NC}"
-        echo -e " ${PURPLE}[5]${NC} ${WHITE}Ganti Tema Interface${NC}"
-        echo -e " ${PURPLE}[6]${NC} ${WHITE}Check for System Updates${NC}"
+        echo -e " ${PURPLE}[1]${NC} ${WHITE}Ubuntu CLI (nxuser)${NC}"
+        echo -e " ${PURPLE}[2]${NC} ${WHITE}Ubuntu CLI (Root)${NC}"
+        echo -e " ${PURPLE}[3]${NC} ${WHITE}Ubuntu GUI (XFCE4 + Audio via Termux:X11)${NC}"
+        echo -e " ${PURPLE}[4]${NC} ${WHITE}Kill Session${NC}"
+        echo -e " ${PURPLE}[5]${NC} ${WHITE}MC (file manager)${NC}"
+        echo -e " ${PURPLE}[6]${NC} ${WHITE}Tema${NC}"
+        echo -e " ${PURPLE}[7]${NC} ${WHITE}Check for System Updates${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
         echo -e " ${PURPLE}[0]${NC} ${WHITE}Exit to Terminal${NC}"
         echo -e "${NEON_PINK}──────────────────────────────────────────────────────${NC}"
@@ -753,7 +754,7 @@ show_shortcut_menu() {
 
         case "$pilihan" in
             1)
-                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI & Audio Bridge...${NC}"
+                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI (nxuser) & Audio Bridge...${NC}"
                 start_pulseaudio
                 ensure_storage_setup
                 sleep 0.5
@@ -766,11 +767,23 @@ show_shortcut_menu() {
                     sleep 1.5
                 fi
                 ;;
-            2) launch_ubuntu_gui; sleep 1 ;;
-            3) kill_ubuntu_gui; sleep 1 ;;
-            4) launch_midnight_commander; sleep 1 ;;
-            5) change_theme_menu ;;
-            6) check_for_update; sleep 1 ;;
+            2)
+                echo -e "\n${PROCESS} ${CYAN}Memuat lingkungan Ubuntu CLI (Root) & Audio Bridge...${NC}"
+                start_pulseaudio
+                ensure_storage_setup
+                sleep 0.5
+                if is_ubuntu_installed; then
+                    ubuntu_login
+                else
+                    echo -e "${NEON_PINK}[ERR] Ubuntu OS belum terinstal.${NC}"
+                    sleep 1.5
+                fi
+                ;;
+            3) launch_ubuntu_gui; sleep 1 ;;
+            4) kill_ubuntu_gui; sleep 1 ;;
+            5) launch_midnight_commander; sleep 1 ;;
+            6) change_theme_menu ;;
+            7) check_for_update; sleep 1 ;;
             0)
                 echo -e "\n${NEON_GREEN}[➔] Keluar ke terminal reguler.${NC}\n"
                 break
@@ -942,4 +955,3 @@ write_bashrc_block
 command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
 
 print_final_menu
-
