@@ -20,12 +20,18 @@ if [ ! -s "$TARGET" ] && [ -s "./nx_code.sh" ]; then
     TARGET="$(realpath ./nx_code.sh 2>/dev/null || echo "./nx_code.sh")"
 fi
 if [ ! -s "$TARGET" ]; then
-    echo -e "\033[0;36m[➔] Mempersiapkan file NX_CODE...\033[0m"
-    curl -fsSL --connect-timeout 5 \
+    echo -e "\033[0;36m[➔] nx_code.sh tidak ditemukan. Mengunduh dari server...\033[0m"
+    curl -fsSL --connect-timeout 8 --max-time 30 \
         https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh \
         -o "$HOME/nx_code.sh" 2>/dev/null
     chmod +x "$HOME/nx_code.sh" 2>/dev/null
     TARGET="$HOME/nx_code.sh"
+fi
+if [ ! -s "$TARGET" ]; then
+    echo -e "\033[1;91m[ERR] File nx_code.sh tidak ditemukan di $HOME/nx_code.sh\033[0m"
+    echo -e "\033[1;33m[!]  Pastikan koneksi internet aktif, lalu jalankan ulang installer:\033[0m"
+    echo -e "\033[0;36m     curl -fsSL https://raw.githubusercontent.com/nxcode123/nx_code/main/nx_code.sh | bash\033[0m"
+    exit 1
 fi
 exec bash "$TARGET" --menu "$@"
 EOF_NX

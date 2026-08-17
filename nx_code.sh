@@ -194,12 +194,26 @@ EOF
 setup_nx_menu_command
 echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Refreshed${NC}"
 
+# Verifikasi binary nx-menu berhasil dibuat
+_bin_dir="${PREFIX:-/data/data/com.termux/files/usr}/bin"
+if [ -x "$_bin_dir/nx-menu" ]; then
+    echo -e "${SUCCESS} ${WHITE}Binary nx-menu           :${NC} ${NEON_GREEN}Ready ($_bin_dir/nx-menu)${NC}"
+else
+    echo -e "${NEON_PINK}[!]${NC} ${WHITE}Binary nx-menu           :${NC} ${NEON_PINK}Gagal dibuat — coba jalankan ulang${NC}"
+fi
+
 command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
 
 echo -e "\n${NEON_GREEN}[Complete]${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
 echo -e "${NEON_GREEN}           SYSTEM INITIALIZED. NX_CODE ACTIVE.         ${NC}"
 echo -e "${NEON_PINK}======================================================${NC}"
+echo -e ""
+echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
+echo -e "${NEON_PINK}[!]${NC} ${WHITE}PENTING: Reload sesi terminal agar nx-menu aktif:${NC}"
+echo -e "    ${CYAN}source ~/.bashrc${NC}  ${PURPLE}(reload tanpa tutup terminal)${NC}"
+echo -e "    atau tutup dan buka kembali terminal Termux."
+echo -e "${PURPLE}──────────────────────────────────────────────────────${NC}"
 
 echo -e " ${PURPLE}[1]${NC} ${WHITE}Masuk ke Menu Utama (nx-menu)${NC}"
 echo -e " ${PURPLE}[2]${NC} ${WHITE}Buka Midnight Commander (MC)${NC}"
@@ -211,6 +225,6 @@ read -r final_choice
 case "$final_choice" in
     1) show_shortcut_menu; exit 0 ;;
     2) launch_midnight_commander; exit 0 ;;
-    3) exec bash ;;
+    3) exec bash --login ;;
     *) exit 0 ;;
 esac
