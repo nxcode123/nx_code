@@ -859,10 +859,11 @@ if ! copy_self_to_home; then
     echo -e "${NEON_PINK}[!] Skrip berjalan via remote stream. Disimpan lokal di $HOME/nx_code.sh${NC}"
 fi
 
-if ! grep -q "NX_CODE ENVIRONMENT" "$HOME/.bashrc" 2>/dev/null; then
-    sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
+# Selalu hapus blok lama & tulis ulang, supaya perubahan (PS1, alias, dll)
+# di nx_code.sh ikut terupdate di .bashrc setiap kali skrip ini dijalankan.
+sed -i '/# --- NX_CODE ENVIRONMENT ---/,/# ---------------------------/d' "$HOME/.bashrc" 2>/dev/null
 
-    cat << 'EOF' >> "$HOME/.bashrc"
+cat << 'EOF' >> "$HOME/.bashrc"
 
 # --- NX_CODE ENVIRONMENT ---
 [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --ui-only
@@ -871,7 +872,7 @@ alias ll='ls -la --color=auto --group-directories-first'
 alias nx-menu='bash $HOME/nx_code.sh --menu'
 alias nx='bash $HOME/nx_code.sh --menu'
 alias nx-mc='bash $HOME/nx_code.sh --mc'
-PS1="\[\033[1;95m\][═\[\033[0;36m\]NX_CODE\[\033[1;95m\]═] \[\033[1;32m\]⚡ \[\033[0m\]"
+PS1="\[\033[1;95m\]🄽🅇🄲•\[\033[0m\] "
 
 clear() { command clear; [ -f "$HOME/nx_code.sh" ] && bash "$HOME/nx_code.sh" --logo-only; }
 
@@ -896,11 +897,8 @@ command_not_found_handle() {
 }
 # ---------------------------
 EOF
-    echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Injected Successfully${NC}"
-else
-    setup_nx_menu_command
-    echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${CYAN}Already Configured${NC}"
-fi
+setup_nx_menu_command
+echo -e "${SUCCESS} ${WHITE}Auto-Startup Profile     :${NC} ${NEON_GREEN}Refreshed${NC}"
 
 command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
 
